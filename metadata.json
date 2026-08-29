@@ -1,0 +1,6 @@
+{
+  "name": "RL Audio-Visual Self-Play Simulator",
+  "description": "A visual game and sound simulation using pure reinforcement learning and self-play to procedurally generate environments and evolve dynamic audio patterns in real time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
