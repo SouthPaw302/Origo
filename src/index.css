@@ -17,16 +17,26 @@
   }
 }
 
-@layer components {
-  .btn-core {
-    @apply px-3 py-2 border border-[#333] bg-[#0b0b0b] text-[#aaa] text-xs font-mono font-bold uppercase tracking-wider transition-colors;
-  }
-  .btn-core:hover:not(:disabled) {
-    @apply border-[#00ff41] text-[#00ff41] bg-black;
-  }
-  .btn-core:disabled {
-    @apply opacity-30 cursor-not-allowed;
-  }
+.btn-core {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #333;
+  background: #0b0b0b;
+  color: #aaa;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+.btn-core:hover:not(:disabled) {
+  border-color: #00ff41;
+  color: #00ff41;
+  background: #000;
+}
+.btn-core:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 ::-webkit-scrollbar {
