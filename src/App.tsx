@@ -1,281 +1,200 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import React, { useEffect, useRef, useState } from 'react';
+import { Activity, Brain, FastForward, Pause, Play, Radio, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { CommunicationEngine, TrainMetrics } from './cleanroom/communication';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { SimulationEngine, SIMULATION_PRESETS } from './simulation/engine';
-import { SimulationCanvas } from './components/SimulationCanvas';
-import { NeuralInspector } from './components/NeuralInspector';
-import { SelfPlayMetrics } from './components/SelfPlayMetrics';
-import { AudioControls } from './components/AudioControls';
-import { ControlPanel } from './components/ControlPanel';
-import { AgentDetailCard } from './components/AgentDetailCard';
-import { soundEngine } from './audio/soundEngine';
-import { EnvironmentPreset, SpeciesType } from './types';
-import {
-  Brain,
-  TrendingUp,
-  Music,
-  Sliders,
-  Volume2,
-  VolumeX,
-  Sparkles,
-  Maximize2,
-  Minimize2,
-  Activity,
-  Layers,
-} from 'lucide-react';
+type AudioState = 'locked' | 'ready' | 'failed';
 
-type ActiveTab = 'neural' | 'metrics' | 'audio' | 'controls';
+const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 export default function App() {
-  const engineRef = useRef<SimulationEngine | null>(null);
-  if (!engineRef.current) {
-    engineRef.current = new SimulationEngine(1000, 700);
-  }
-  const engine = engineRef.current;
+  const [seed, setSeed] = useState(302);
+  const engineRef = useRef(new CommunicationEngine(seed));
+  const [metrics, setMetrics] = useState<TrainMetrics>(() => engineRef.current.metrics());
+  const [running, setRunning] = useState(true);
+  const [demoChannel, setDemoChannel] = useState(true);
+  const [audioState, setAudioState] = useState<AudioState>('locked');
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const [demo, setDemo] = useState(() => engineRef.current.demo(true));
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('neural');
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(engine.selectedAgentId);
-  const [metrics, setMetrics] = useState(engine.getMetrics());
-  const [isAudioMuted, setIsAudioMuted] = useState(soundEngine.getConfig().isMuted);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Periodic metrics sync for UI state (every 100ms)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(engine.getMetrics());
-      setSelectedAgentId(engine.selectedAgentId);
-      setIsAudioMuted(soundEngine.getConfig().isMuted);
-    }, 100);
+    if (!running) return;
+    const timer = window.setInterval(() => {
+      setMetrics(engineRef.current.trainBatch(256));
+    }, 80);
+    return () => window.clearInterval(timer);
+  }, [running]);
 
-    return () => clearInterval(interval);
-  }, [engine]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next = engineRef.current.demo(demoChannel);
+      setDemo(next);
+      if (audioState === 'ready' && demoChannel) playTone(next.signalHz);
+    }, 650);
+    return () => window.clearInterval(timer);
+  }, [demoChannel, audioState]);
 
-  // Initial user gesture to unlock WebAudio
-  const handleUserInteract = () => {
-    soundEngine.init();
+  const playTone = (frequency: number) => {
+    const ctx = audioContextRef.current;
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.2);
   };
 
-  const handlePresetSelect = (preset: EnvironmentPreset) => {
-    soundEngine.init();
-    engine.applyPreset(preset);
-  };
-
-  const toggleAudio = () => {
-    soundEngine.init();
-    const newMuted = !isAudioMuted;
-    soundEngine.setMuted(newMuted);
-    setIsAudioMuted(newMuted);
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
+  const enableAudio = async () => {
+    try {
+      const AudioCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtor) throw new Error('WebAudio unavailable');
+      const ctx = audioContextRef.current ?? new AudioCtor();
+      audioContextRef.current = ctx;
+      await ctx.resume();
+      if (ctx.state !== 'running') throw new Error(`AudioContext ${ctx.state}`);
+      setAudioState('ready');
+      playTone(demo.signalHz);
+    } catch {
+      setAudioState('failed');
     }
   };
 
-  const selectedAgent = engine.getSelectedAgent();
+  const fastTrain = () => {
+    let next = metrics;
+    for (let i = 0; i < 40; i++) next = engineRef.current.trainBatch(512);
+    setMetrics(next);
+    setDemo(engineRef.current.demo(demoChannel));
+  };
+
+  const reset = () => {
+    const nextSeed = seed || 302;
+    engineRef.current = new CommunicationEngine(nextSeed);
+    setMetrics(engineRef.current.metrics());
+    setDemo(engineRef.current.demo(demoChannel));
+  };
+
+  const passed = metrics.successOn > 0.85 && metrics.successOff < 0.6;
 
   return (
-    <div
-      id="app-root"
-      onClick={handleUserInteract}
-      className="flex flex-col w-screen h-screen bg-[#050505] text-[#f0f0f0] overflow-hidden font-sans border-[8px] md:border-[12px] border-[#111]"
-    >
-      {/* Top Artistic Flair Header */}
-      <header
-        id="app-header"
-        className="flex flex-wrap items-center justify-between px-6 py-3 bg-[#0a0a0a] border-b border-[#222] z-30 flex-shrink-0 gap-3"
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 bg-[#050505] border border-[#333] flex items-center justify-center relative">
-            <div className="absolute inset-0 border border-[#00ff41] opacity-60 -rotate-12 scale-90"></div>
-            <Sparkles className="w-4 h-4 text-[#00ff41] relative z-10" />
-          </div>
+    <div className="min-h-screen bg-[#050505] text-[#f0f0f0] p-3 md:p-5">
+      <div className="mx-auto max-w-7xl border border-[#222] bg-[#090909] min-h-[calc(100vh-24px)] flex flex-col">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#222] px-5 py-4 bg-[#0c0c0c]">
           <div>
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-xl md:text-2xl font-display font-black tracking-tighter leading-none italic uppercase text-white">
-                Neural Harmonics
-              </h1>
-              <span className="text-[9px] font-mono tracking-widest px-2 py-0.5 border border-[#00ff41] text-[#00ff41] bg-black uppercase">
-                RL Self-Play v4.0
-              </span>
+            <div className="flex items-center gap-3">
+              <h1 className="font-display text-2xl md:text-3xl font-black italic uppercase tracking-tight">Origo Core</h1>
+              <span className="border border-[#00ff41] px-2 py-1 text-[9px] font-mono tracking-widest text-[#00ff41]">CLEAN ROOM</span>
             </div>
-            <p className="text-[10px] text-[#666] mt-1 tracking-[0.25em] uppercase font-mono font-semibold">
-              Procedural Wavefield & Autonomous Sonic Synthesis
-            </p>
-          </div>
-        </div>
-
-        {/* Global Live Artistic Stats & Actions */}
-        <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-6 pr-4 border-r border-[#222]">
-            <div className="text-right">
-              <p className="text-[9px] text-[#666] uppercase tracking-widest font-mono">Steps Processed</p>
-              <p className="text-lg font-light tracking-tight font-mono text-white">
-                {metrics.stepCount.toLocaleString()}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-[#666] uppercase tracking-widest font-mono">Sim FPS</p>
-              <p className="text-lg font-light tracking-tight font-mono text-[#00ff41]">
-                {metrics.fps}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-[#666] uppercase tracking-widest font-mono">Active Scale</p>
-              <p className="text-lg font-light tracking-tight font-mono text-[#ff3e00]">
-                {engine.activePreset.soundPreset.scaleName}
-              </p>
-            </div>
+            <p className="mt-1 text-[10px] font-mono uppercase tracking-[0.22em] text-[#666]">Zero human behavior data · continuous acoustic self-learning</p>
           </div>
 
-          {/* Master Audio Button */}
-          <button
-            id="header-audio-btn"
-            onClick={toggleAudio}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.15em] font-mono font-bold transition-all border ${
-              isAudioMuted
-                ? 'bg-black border-[#ff3e00] text-[#ff3e00] hover:bg-[#ff3e00] hover:text-black'
-                : 'bg-black border-[#00ff41] text-[#00ff41] hover:bg-[#00ff41] hover:text-black'
-            }`}
-          >
-            {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 animate-pulse" />}
-            <span>{isAudioMuted ? 'Audio Muted' : 'DSP Synth Live'}</span>
-          </button>
-
-          {/* Fullscreen Button */}
-          <button
-            id="header-fullscreen-btn"
-            onClick={toggleFullscreen}
-            className="p-2 text-[#888] hover:text-white bg-[#111] hover:bg-[#222] border border-[#333] transition-all"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Workspace Layout */}
-      <main id="app-workspace" className="flex flex-1 w-full h-[calc(100vh-100px)] overflow-hidden">
-        {/* Left / Center Viewport: Interactive Simulation Canvas */}
-        <section id="canvas-section" className="relative flex-1 h-full min-w-0 bg-[#050505]">
-          <SimulationCanvas
-            engine={engine}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={(id) => setSelectedAgentId(id)}
-          />
-
-          {/* Floating Selected Agent Card */}
-          <AgentDetailCard
-            agent={selectedAgent}
-            onDeselect={() => {
-              setSelectedAgentId(null);
-              engine.selectedAgentId = null;
-            }}
-          />
-        </section>
-
-        {/* Right Sidebar: Multi-Tab Intelligence & Sound Console */}
-        <aside
-          id="inspector-sidebar"
-          className="w-96 xl:w-[420px] h-full bg-[#0a0a0a] border-l border-[#222] flex flex-col flex-shrink-0 z-20"
-        >
-          {/* Tab Navigation Header */}
-          <nav
-            id="sidebar-tabs"
-            className="flex items-center justify-between bg-[#111] border-b border-[#222] flex-shrink-0"
-          >
-            <button
-              id="tab-neural-btn"
-              onClick={() => setActiveTab('neural')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'neural'
-                  ? 'bg-[#050505] text-[#00ff41] border-[#00ff41]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <Brain className="w-3.5 h-3.5" />
-              <span>Neural Net</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => setRunning(v => !v)} className="flex items-center gap-2 border border-[#333] bg-black px-3 py-2 text-xs font-mono uppercase hover:border-[#00ff41]">
+              {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {running ? 'Pause' : 'Auto Learn'}
             </button>
-
-            <button
-              id="tab-metrics-btn"
-              onClick={() => setActiveTab('metrics')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'metrics'
-                  ? 'bg-[#050505] text-[#ff3e00] border-[#ff3e00]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Self-Play</span>
+            <button onClick={fastTrain} className="flex items-center gap-2 border border-[#00ff41] bg-[#00ff41]/10 px-3 py-2 text-xs font-mono uppercase text-[#00ff41]">
+              <FastForward className="h-4 w-4" /> Fast Train
             </button>
-
-            <button
-              id="tab-audio-btn"
-              onClick={() => setActiveTab('audio')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'audio'
-                  ? 'bg-[#050505] text-[#00ff41] border-[#00ff41]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <Music className="w-3.5 h-3.5" />
-              <span>Synth DSP</span>
+            <button onClick={enableAudio} className={`flex items-center gap-2 border px-3 py-2 text-xs font-mono uppercase ${audioState === 'ready' ? 'border-[#00ff41] text-[#00ff41]' : audioState === 'failed' ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#555] text-[#aaa]'}`}>
+              {audioState === 'ready' ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              {audioState === 'ready' ? 'Audio Ready' : audioState === 'failed' ? 'Audio Failed' : 'Enable Audio'}
             </button>
-
-            <button
-              id="tab-controls-btn"
-              onClick={() => setActiveTab('controls')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'controls'
-                  ? 'bg-[#050505] text-[#ff3e00] border-[#ff3e00]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Config</span>
-            </button>
-          </nav>
-
-          {/* Active Tab Body */}
-          <div id="sidebar-content" className="flex-1 p-3 overflow-hidden bg-[#0a0a0a]">
-            {activeTab === 'neural' && <NeuralInspector agent={selectedAgent} />}
-            {activeTab === 'metrics' && (
-              <SelfPlayMetrics
-                metrics={metrics}
-                ganMetrics={engine.getGANMetrics()}
-                onSelectLatent={(latent) => engine.applyLatentSample(latent)}
-                onResampleLatent={() => engine.resampleLatentSpace()}
-              />
-            )}
-            {activeTab === 'audio' && <AudioControls />}
-            {activeTab === 'controls' && (
-              <ControlPanel engine={engine} onPresetChange={handlePresetSelect} />
-            )}
           </div>
-        </aside>
-      </main>
+        </header>
 
-      {/* Bottom Technical Status Bar (Artistic Flair Footer) */}
-      <footer
-        id="app-footer"
-        className="h-8 flex items-center justify-between px-6 bg-[#0c0c0c] border-t border-[#222] text-[10px] uppercase tracking-widest text-[#555] font-mono flex-shrink-0"
-      >
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-[#00ff41] inline-block animate-pulse"></span>
-          <span>Kernel: RL-PPO-CORE-092</span>
-        </div>
-        <div className="hidden sm:block">Status: Stable Continuous Evolution</div>
-        <div>Scale: {engine.activePreset.soundPreset.scaleName} | Mode: Self-Play</div>
-      </footer>
+        <main className="grid flex-1 grid-cols-1 lg:grid-cols-[1fr_360px]">
+          <section className="relative min-h-[520px] overflow-hidden border-b border-[#222] bg-grid-pattern lg:border-b-0 lg:border-r">
+            <div className="absolute left-5 top-5 flex flex-wrap gap-2 text-[9px] font-mono uppercase tracking-wider z-10">
+              <span className="border border-[#333] bg-black/80 px-2 py-1">Real PPO</span>
+              <span className="border border-[#333] bg-black/80 px-2 py-1">No signal IDs</span>
+              <span className="border border-[#333] bg-black/80 px-2 py-1">Seed {seed}</span>
+            </div>
+
+            <svg viewBox="0 0 900 560" className="h-full min-h-[520px] w-full">
+              <defs>
+                <filter id="glow"><feGaussianBlur stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              </defs>
+              <rect x="55" y="55" width="790" height="450" fill="none" stroke="#222" strokeWidth="2" />
+
+              <circle cx="720" cy="170" r="46" fill={demo.hiddenState === -1 ? '#00ff4122' : '#0b0b0b'} stroke={demo.hiddenState === -1 ? '#00ff41' : '#333'} strokeWidth="2" />
+              <text x="720" y="176" textAnchor="middle" fill={demo.hiddenState === -1 ? '#00ff41' : '#666'} fontFamily="monospace" fontSize="16">TARGET A</text>
+              <circle cx="720" cy="390" r="46" fill={demo.hiddenState === 1 ? '#ff3e0022' : '#0b0b0b'} stroke={demo.hiddenState === 1 ? '#ff3e00' : '#333'} strokeWidth="2" />
+              <text x="720" y="396" textAnchor="middle" fill={demo.hiddenState === 1 ? '#ff3e00' : '#666'} fontFamily="monospace" fontSize="16">TARGET B</text>
+
+              <circle cx="220" cy="280" r="40" fill="#06120a" stroke="#00ff41" strokeWidth="3" filter="url(#glow)" />
+              <text x="220" y="275" textAnchor="middle" fill="#fff" fontFamily="monospace" fontSize="15">AGENT A</text>
+              <text x="220" y="295" textAnchor="middle" fill="#00ff41" fontFamily="monospace" fontSize="11">SEES TARGET</text>
+
+              <circle cx="520" cy="280" r="40" fill="#140805" stroke="#ff3e00" strokeWidth="3" filter="url(#glow)" />
+              <text x="520" y="275" textAnchor="middle" fill="#fff" fontFamily="monospace" fontSize="15">AGENT B</text>
+              <text x="520" y="295" textAnchor="middle" fill="#ff3e00" fontFamily="monospace" fontSize="11">HEARS ONLY</text>
+
+              {demoChannel && <>
+                {[0, 1, 2].map(i => <circle key={i} cx="220" cy="280" r={70 + i * 48} fill="none" stroke="#00ff41" strokeOpacity={0.5 - i * 0.12} strokeWidth="2" />)}
+                <line x1="260" y1="280" x2="480" y2="280" stroke="#00ff41" strokeOpacity=".7" strokeDasharray="8 8" />
+              </>}
+
+              <path d={demo.choice === -1 ? 'M 555 265 Q 640 205 682 180' : 'M 555 295 Q 640 355 682 380'} fill="none" stroke={demo.correct ? '#00ff41' : '#ff3e00'} strokeWidth="4" />
+              <text x="350" y="250" textAnchor="middle" fill={demoChannel ? '#00ff41' : '#555'} fontFamily="monospace" fontSize="14">{demoChannel ? `${Math.round(demo.signalHz)} Hz` : 'CHANNEL OFF'}</text>
+            </svg>
+
+            <div className="absolute bottom-5 left-5 right-5 grid grid-cols-3 gap-2 text-center font-mono text-xs">
+              <div className="border border-[#222] bg-black/80 p-3"><div className="text-[#666] text-[9px] uppercase">Hidden state</div><div className="mt-1">{demo.hiddenState === -1 ? 'TARGET A' : 'TARGET B'}</div></div>
+              <div className="border border-[#222] bg-black/80 p-3"><div className="text-[#666] text-[9px] uppercase">Invented signal</div><div className="mt-1 text-[#00ff41]">{Math.round(demo.signalHz)} Hz</div></div>
+              <div className="border border-[#222] bg-black/80 p-3"><div className="text-[#666] text-[9px] uppercase">Receiver choice</div><div className={`mt-1 ${demo.correct ? 'text-[#00ff41]' : 'text-[#ff3e00]'}`}>{demo.choice === -1 ? 'TARGET A' : 'TARGET B'}</div></div>
+            </div>
+          </section>
+
+          <aside className="bg-[#0a0a0a] p-4 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#222] pb-3">
+              <div className="flex items-center gap-2"><Brain className="h-4 w-4 text-[#00ff41]"/><span className="font-tech text-sm uppercase">Learning Core</span></div>
+              <span className={`text-[9px] font-mono px-2 py-1 border ${passed ? 'border-[#00ff41] text-[#00ff41]' : 'border-[#555] text-[#888]'}`}>{passed ? 'COMMUNICATION PASS' : 'LEARNING'}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="Acoustic ON" value={pct(metrics.successOn)} strong />
+              <Metric label="Acoustic OFF" value={pct(metrics.successOff)} />
+              <Metric label="PPO updates" value={metrics.update.toLocaleString()} />
+              <Metric label="Episodes" value={metrics.episodes.toLocaleString()} />
+              <Metric label="Batch success" value={pct(metrics.batchSuccess)} />
+              <Metric label="Signal gap" value={`${Math.round(metrics.signalGapHz)} Hz`} />
+            </div>
+
+            <div className="border border-[#222] bg-[#070707] p-3 space-y-3">
+              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-[#888]"><Radio className="h-3.5 w-3.5 text-[#00ff41]"/> Protocol discovered</div>
+              <div className="flex items-center justify-between font-mono text-xs"><span className="text-[#777]">Target A</span><span className="text-[#00ff41]">{Math.round(metrics.leftHz)} Hz</span></div>
+              <div className="flex items-center justify-between font-mono text-xs"><span className="text-[#777]">Target B</span><span className="text-[#ff3e00]">{Math.round(metrics.rightHz)} Hz</span></div>
+              <div className="h-1 bg-[#151515] overflow-hidden"><div className="h-full bg-[#00ff41]" style={{ width: `${Math.min(100, metrics.signalGapHz / 10.8)}%` }} /></div>
+            </div>
+
+            <button onClick={() => setDemoChannel(v => !v)} className={`w-full flex items-center justify-between border p-3 font-mono text-xs uppercase ${demoChannel ? 'border-[#00ff41] text-[#00ff41]' : 'border-[#ff3e00] text-[#ff3e00]'}`}>
+              <span>Demo acoustic channel</span><span>{demoChannel ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <div className="border border-[#222] p-3 space-y-2">
+              <label className="text-[9px] font-mono uppercase text-[#666]">Deterministic seed</label>
+              <div className="flex gap-2">
+                <input type="number" value={seed} onChange={e => setSeed(Number(e.target.value))} className="min-w-0 flex-1 border border-[#333] bg-black px-3 py-2 font-mono text-sm outline-none focus:border-[#00ff41]" />
+                <button onClick={reset} title="Reset from seed" className="border border-[#333] px-3 hover:border-[#00ff41]"><RotateCcw className="h-4 w-4"/></button>
+              </div>
+            </div>
+
+            <div className="border border-[#222] bg-black p-3 text-[10px] font-mono leading-relaxed text-[#777]">
+              <div className="mb-2 flex items-center gap-2 text-[#aaa]"><Activity className="h-3.5 w-3.5"/> TEST</div>
+              A sees one hidden bit. B never sees it. A may emit only a continuous frequency. B receives that physical value plus noise. Both get +1/-1 from task success. No frequency mapping is supplied.
+            </div>
+          </aside>
+        </main>
+      </div>
     </div>
   );
+}
+
+function Metric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return <div className="border border-[#222] bg-black p-3"><div className="text-[9px] font-mono uppercase tracking-wider text-[#666]">{label}</div><div className={`mt-1 font-mono text-lg ${strong ? 'text-[#00ff41]' : 'text-white'}`}>{value}</div></div>;
 }
