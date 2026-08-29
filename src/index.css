@@ -17,7 +17,18 @@
   }
 }
 
-/* Artistic Flair Scrollbars */
+@layer components {
+  .btn-core {
+    @apply px-3 py-2 border border-[#333] bg-[#0b0b0b] text-[#aaa] text-xs font-mono font-bold uppercase tracking-wider transition-colors;
+  }
+  .btn-core:hover:not(:disabled) {
+    @apply border-[#00ff41] text-[#00ff41] bg-black;
+  }
+  .btn-core:disabled {
+    @apply opacity-30 cursor-not-allowed;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -27,24 +38,20 @@
 }
 ::-webkit-scrollbar-thumb {
   background: #262626;
-  border-radius: 0px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #00ff41;
 }
 
-/* Range input styling for Artistic Flair theme */
 input[type=range] {
   accent-color: #00ff41;
 }
 
-/* Subtle grid texture */
 .bg-grid-pattern {
   background-image: radial-gradient(#222 1px, transparent 1px);
   background-size: 16px 16px;
 }
 
-/* Pulse / Animation utilities */
 @keyframes neonPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.7; transform: scale(0.98); }
@@ -53,4 +60,3 @@ input[type=range] {
 .animate-neon {
   animation: neonPulse 2s ease-in-out infinite;
 }
-

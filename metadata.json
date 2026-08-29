@@ -1,6 +1,6 @@
 {
-  "name": "RL Audio-Visual Self-Play Simulator",
-  "description": "A visual game and sound simulation using pure reinforcement learning and self-play to procedurally generate environments and evolve dynamic audio patterns in real time.",
+  "name": "Origo",
+  "description": "A reinforcement-learning and self-play laboratory for games, artificial life, emergent communication and raw sound. Core uses no human gameplay, music examples, demonstrations or pretrained behavioral data.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

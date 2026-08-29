@@ -1,281 +1,134 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import React, { useState } from 'react';
+import { ORIGO_CORE_RULE, CORE_ALLOWED_PRIMITIVES, CORE_FORBIDDEN_PRIORS } from './core/doctrine';
+import TicTacToeArena from './experiments/TicTacToeArena';
+import LifeWars from './experiments/LifeWars';
+import EchoLanguage from './experiments/EchoLanguage';
+import MusicLab from './experiments/MusicLab';
+import LegacyApp from './LegacyApp';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { SimulationEngine, SIMULATION_PRESETS } from './simulation/engine';
-import { SimulationCanvas } from './components/SimulationCanvas';
-import { NeuralInspector } from './components/NeuralInspector';
-import { SelfPlayMetrics } from './components/SelfPlayMetrics';
-import { AudioControls } from './components/AudioControls';
-import { ControlPanel } from './components/ControlPanel';
-import { AgentDetailCard } from './components/AgentDetailCard';
-import { soundEngine } from './audio/soundEngine';
-import { EnvironmentPreset, SpeciesType } from './types';
-import {
-  Brain,
-  TrendingUp,
-  Music,
-  Sliders,
-  Volume2,
-  VolumeX,
-  Sparkles,
-  Maximize2,
-  Minimize2,
-  Activity,
-  Layers,
-} from 'lucide-react';
+type Experiment = 'home' | 'arena' | 'life' | 'echo' | 'music' | 'legacy';
 
-type ActiveTab = 'neural' | 'metrics' | 'audio' | 'controls';
+const experiments: { id: Experiment; title: string; subtitle: string; tag: string }[] = [
+  { id: 'arena', title: 'Self-Play Arena', subtitle: 'Tabular RL discovers Tic-Tac-Toe from terminal reward alone.', tag: 'CORE' },
+  { id: 'life', title: 'Life Wars', subtitle: 'Two policies learn competitive cellular-automaton seeding.', tag: 'CORE' },
+  { id: 'echo', title: 'Echo Language', subtitle: 'Agents invent a private acoustic communication protocol.', tag: 'CORE + AUDIO' },
+  { id: 'music', title: 'Raw Music Lab', subtitle: 'Self-play explores raw synthesis and Origo-only composition lineages.', tag: 'CORE + AUDIO' },
+  { id: 'legacy', title: 'Neural Harmonics', subtitle: 'Original AI Studio simulation preserved with its human musical priors.', tag: 'SANDBOX / LEGACY' },
+];
 
 export default function App() {
-  const engineRef = useRef<SimulationEngine | null>(null);
-  if (!engineRef.current) {
-    engineRef.current = new SimulationEngine(1000, 700);
+  const [active, setActive] = useState<Experiment>('home');
+
+  if (active === 'legacy') {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-black">
+        <button
+          onClick={() => setActive('home')}
+          className="fixed top-3 left-3 z-[100] px-3 py-2 bg-black border border-[#ff3e00] text-[#ff3e00] font-mono text-xs font-bold uppercase shadow-xl"
+        >
+          ← Exit legacy sandbox
+        </button>
+        <div className="fixed top-3 right-3 z-[100] px-3 py-2 bg-black/90 border border-[#ff3e00] text-[#ff3e00] font-mono text-[10px] uppercase hidden md:block">
+          Contains human scales / musical priors — excluded from Core
+        </div>
+        <LegacyApp />
+      </div>
+    );
   }
-  const engine = engineRef.current;
-
-  const [activeTab, setActiveTab] = useState<ActiveTab>('neural');
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(engine.selectedAgentId);
-  const [metrics, setMetrics] = useState(engine.getMetrics());
-  const [isAudioMuted, setIsAudioMuted] = useState(soundEngine.getConfig().isMuted);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Periodic metrics sync for UI state (every 100ms)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(engine.getMetrics());
-      setSelectedAgentId(engine.selectedAgentId);
-      setIsAudioMuted(soundEngine.getConfig().isMuted);
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [engine]);
-
-  // Initial user gesture to unlock WebAudio
-  const handleUserInteract = () => {
-    soundEngine.init();
-  };
-
-  const handlePresetSelect = (preset: EnvironmentPreset) => {
-    soundEngine.init();
-    engine.applyPreset(preset);
-  };
-
-  const toggleAudio = () => {
-    soundEngine.init();
-    const newMuted = !isAudioMuted;
-    soundEngine.setMuted(newMuted);
-    setIsAudioMuted(newMuted);
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
-  const selectedAgent = engine.getSelectedAgent();
 
   return (
-    <div
-      id="app-root"
-      onClick={handleUserInteract}
-      className="flex flex-col w-screen h-screen bg-[#050505] text-[#f0f0f0] overflow-hidden font-sans border-[8px] md:border-[12px] border-[#111]"
-    >
-      {/* Top Artistic Flair Header */}
-      <header
-        id="app-header"
-        className="flex flex-wrap items-center justify-between px-6 py-3 bg-[#0a0a0a] border-b border-[#222] z-30 flex-shrink-0 gap-3"
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 bg-[#050505] border border-[#333] flex items-center justify-center relative">
-            <div className="absolute inset-0 border border-[#00ff41] opacity-60 -rotate-12 scale-90"></div>
-            <Sparkles className="w-4 h-4 text-[#00ff41] relative z-10" />
+    <div className="w-screen h-screen bg-[#050505] text-[#f0f0f0] overflow-hidden flex flex-col">
+      <header className="flex-shrink-0 border-b border-[#222] bg-[#090909] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+        <button onClick={() => setActive('home')} className="text-left group">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-2xl md:text-3xl font-display font-black italic uppercase tracking-tighter group-hover:text-[#00ff41]">ORIGO</h1>
+            <span className="border border-[#00ff41] text-[#00ff41] px-2 py-0.5 text-[9px] font-mono tracking-widest uppercase">Core Clean</span>
           </div>
-          <div>
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-xl md:text-2xl font-display font-black tracking-tighter leading-none italic uppercase text-white">
-                Neural Harmonics
-              </h1>
-              <span className="text-[9px] font-mono tracking-widest px-2 py-0.5 border border-[#00ff41] text-[#00ff41] bg-black uppercase">
-                RL Self-Play v4.0
-              </span>
-            </div>
-            <p className="text-[10px] text-[#666] mt-1 tracking-[0.25em] uppercase font-mono font-semibold">
-              Procedural Wavefield & Autonomous Sonic Synthesis
-            </p>
-          </div>
-        </div>
-
-        {/* Global Live Artistic Stats & Actions */}
-        <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-6 pr-4 border-r border-[#222]">
-            <div className="text-right">
-              <p className="text-[9px] text-[#666] uppercase tracking-widest font-mono">Steps Processed</p>
-              <p className="text-lg font-light tracking-tight font-mono text-white">
-                {metrics.stepCount.toLocaleString()}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-[#666] uppercase tracking-widest font-mono">Sim FPS</p>
-              <p className="text-lg font-light tracking-tight font-mono text-[#00ff41]">
-                {metrics.fps}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-[#666] uppercase tracking-widest font-mono">Active Scale</p>
-              <p className="text-lg font-light tracking-tight font-mono text-[#ff3e00]">
-                {engine.activePreset.soundPreset.scaleName}
-              </p>
-            </div>
-          </div>
-
-          {/* Master Audio Button */}
-          <button
-            id="header-audio-btn"
-            onClick={toggleAudio}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.15em] font-mono font-bold transition-all border ${
-              isAudioMuted
-                ? 'bg-black border-[#ff3e00] text-[#ff3e00] hover:bg-[#ff3e00] hover:text-black'
-                : 'bg-black border-[#00ff41] text-[#00ff41] hover:bg-[#00ff41] hover:text-black'
-            }`}
-          >
-            {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 animate-pulse" />}
-            <span>{isAudioMuted ? 'Audio Muted' : 'DSP Synth Live'}</span>
-          </button>
-
-          {/* Fullscreen Button */}
-          <button
-            id="header-fullscreen-btn"
-            onClick={toggleFullscreen}
-            className="p-2 text-[#888] hover:text-white bg-[#111] hover:bg-[#222] border border-[#333] transition-all"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
+          <div className="hidden sm:block text-[9px] text-[#666] uppercase tracking-[0.22em] font-mono">Autonomous self-play laboratory</div>
+        </button>
+        <div className="flex items-center gap-2">
+          {active !== 'home' && <button className="btn-core" onClick={() => setActive('home')}>Experiments</button>}
+          <span className="hidden md:inline text-[10px] font-mono text-[#555]">NO HUMAN TRAINING DATA</span>
         </div>
       </header>
 
-      {/* Main Workspace Layout */}
-      <main id="app-workspace" className="flex flex-1 w-full h-[calc(100vh-100px)] overflow-hidden">
-        {/* Left / Center Viewport: Interactive Simulation Canvas */}
-        <section id="canvas-section" className="relative flex-1 h-full min-w-0 bg-[#050505]">
-          <SimulationCanvas
-            engine={engine}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={(id) => setSelectedAgentId(id)}
-          />
-
-          {/* Floating Selected Agent Card */}
-          <AgentDetailCard
-            agent={selectedAgent}
-            onDeselect={() => {
-              setSelectedAgentId(null);
-              engine.selectedAgentId = null;
-            }}
-          />
-        </section>
-
-        {/* Right Sidebar: Multi-Tab Intelligence & Sound Console */}
-        <aside
-          id="inspector-sidebar"
-          className="w-96 xl:w-[420px] h-full bg-[#0a0a0a] border-l border-[#222] flex flex-col flex-shrink-0 z-20"
-        >
-          {/* Tab Navigation Header */}
-          <nav
-            id="sidebar-tabs"
-            className="flex items-center justify-between bg-[#111] border-b border-[#222] flex-shrink-0"
-          >
-            <button
-              id="tab-neural-btn"
-              onClick={() => setActiveTab('neural')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'neural'
-                  ? 'bg-[#050505] text-[#00ff41] border-[#00ff41]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <Brain className="w-3.5 h-3.5" />
-              <span>Neural Net</span>
-            </button>
-
-            <button
-              id="tab-metrics-btn"
-              onClick={() => setActiveTab('metrics')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'metrics'
-                  ? 'bg-[#050505] text-[#ff3e00] border-[#ff3e00]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Self-Play</span>
-            </button>
-
-            <button
-              id="tab-audio-btn"
-              onClick={() => setActiveTab('audio')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'audio'
-                  ? 'bg-[#050505] text-[#00ff41] border-[#00ff41]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <Music className="w-3.5 h-3.5" />
-              <span>Synth DSP</span>
-            </button>
-
-            <button
-              id="tab-controls-btn"
-              onClick={() => setActiveTab('controls')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-1 text-[11px] font-mono uppercase tracking-wider font-bold transition-all border-b-2 ${
-                activeTab === 'controls'
-                  ? 'bg-[#050505] text-[#ff3e00] border-[#ff3e00]'
-                  : 'text-[#888] hover:text-white border-transparent hover:bg-[#161616]'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Config</span>
-            </button>
-          </nav>
-
-          {/* Active Tab Body */}
-          <div id="sidebar-content" className="flex-1 p-3 overflow-hidden bg-[#0a0a0a]">
-            {activeTab === 'neural' && <NeuralInspector agent={selectedAgent} />}
-            {activeTab === 'metrics' && (
-              <SelfPlayMetrics
-                metrics={metrics}
-                ganMetrics={engine.getGANMetrics()}
-                onSelectLatent={(latent) => engine.applyLatentSample(latent)}
-                onResampleLatent={() => engine.resampleLatentSpace()}
-              />
-            )}
-            {activeTab === 'audio' && <AudioControls />}
-            {activeTab === 'controls' && (
-              <ControlPanel engine={engine} onPresetChange={handlePresetSelect} />
-            )}
-          </div>
-        </aside>
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {active === 'home' && <Home onOpen={setActive} />}
+        {active === 'arena' && <TicTacToeArena />}
+        {active === 'life' && <LifeWars />}
+        {active === 'echo' && <EchoLanguage />}
+        {active === 'music' && <MusicLab />}
       </main>
 
-      {/* Bottom Technical Status Bar (Artistic Flair Footer) */}
-      <footer
-        id="app-footer"
-        className="h-8 flex items-center justify-between px-6 bg-[#0c0c0c] border-t border-[#222] text-[10px] uppercase tracking-widest text-[#555] font-mono flex-shrink-0"
-      >
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-[#00ff41] inline-block animate-pulse"></span>
-          <span>Kernel: RL-PPO-CORE-092</span>
-        </div>
-        <div className="hidden sm:block">Status: Stable Continuous Evolution</div>
-        <div>Scale: {engine.activePreset.soundPreset.scaleName} | Mode: Self-Play</div>
+      <footer className="flex-shrink-0 h-7 border-t border-[#222] bg-[#080808] px-4 flex items-center justify-between text-[9px] text-[#555] uppercase tracking-widest font-mono">
+        <span>ORIGO CORE RULE ACTIVE</span>
+        <span className="hidden sm:inline">RL + SELF-PLAY · ZERO HUMAN EXAMPLES</span>
       </footer>
+    </div>
+  );
+}
+
+function Home({ onOpen }: { onOpen: (id: Experiment) => void }) {
+  return (
+    <div className="h-full overflow-auto p-4 md:p-7">
+      <div className="max-w-7xl mx-auto space-y-7">
+        <section className="grid lg:grid-cols-[1.2fr_.8fr] gap-4">
+          <div className="border border-[#222] bg-black p-5 md:p-7">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-[#00ff41] font-mono mb-3">Foundational constraint</div>
+            <blockquote className="text-xl md:text-3xl font-display font-black leading-tight uppercase tracking-tight">
+              {ORIGO_CORE_RULE}
+            </blockquote>
+            <p className="text-sm text-[#777] mt-5 max-w-3xl">
+              Origo may be given a body, controls, instruments, physics, opponents and rewards. It is not shown how humans solve the task. Anything it discovers inside Core can become material for later Core experiments because its ancestry remains internal to Origo.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <DoctrineList title="Allowed primitives" items={CORE_ALLOWED_PRIMITIVES.slice(0, 8)} good />
+            <DoctrineList title="Forbidden priors" items={CORE_FORBIDDEN_PRIORS.slice(0, 8)} />
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-black uppercase">Experiments</h2>
+              <p className="text-xs text-[#666] font-mono">Core experiments remain isolated from legacy or human-seeded material.</p>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {experiments.map((exp) => (
+              <button
+                key={exp.id}
+                onClick={() => onOpen(exp.id)}
+                className={`text-left min-h-40 p-5 border bg-[#0a0a0a] hover:bg-[#101010] transition-colors ${exp.id === 'legacy' ? 'border-[#4b2419] hover:border-[#ff3e00]' : 'border-[#222] hover:border-[#00ff41]'}`}
+              >
+                <div className={`text-[9px] font-mono tracking-widest uppercase ${exp.id === 'legacy' ? 'text-[#ff3e00]' : 'text-[#00ff41]'}`}>{exp.tag}</div>
+                <div className="text-xl font-black uppercase mt-3">{exp.title}</div>
+                <p className="text-xs text-[#777] mt-2 leading-relaxed">{exp.subtitle}</p>
+                <div className="mt-4 text-xs font-mono text-[#555]">OPEN →</div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="border border-[#222] bg-[#090909] p-5">
+          <div className="text-xs uppercase tracking-widest text-[#00ff41] font-mono">Composition lineage rule</div>
+          <p className="text-sm text-[#888] mt-2 max-w-4xl">
+            Whole sequences generated inside Origo Core may be saved, replayed and mutated as descendants. Their origin tag and parents are retained. Human songs or external MIDI are not accepted into Core; those belong in a separately labeled sandbox if we add import tools later.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function DoctrineList({ title, items, good = false }: { title: string; items: readonly string[]; good?: boolean }) {
+  return (
+    <div className="border border-[#222] bg-[#0a0a0a] p-4 min-w-0">
+      <div className={`text-[9px] uppercase tracking-widest font-mono mb-3 ${good ? 'text-[#00ff41]' : 'text-[#ff3e00]'}`}>{title}</div>
+      <div className="space-y-2">
+        {items.map((item) => <div key={item} className="text-[11px] text-[#777] font-mono break-words">{good ? '+' : '×'} {item}</div>)}
+      </div>
     </div>
   );
 }
