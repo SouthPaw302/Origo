@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, Brain, FastForward, Pause, Play, Radio, RefreshCcw, Save, Upload, Volume2, VolumeX, Waves } from 'lucide-react';
 import { WorldCanvas } from './cleanroom/WorldCanvas';
+import { GrooveBox, GrooveTrigger } from './cleanroom/GrooveBox';
 import { CleanroomWorld, WorldMetrics } from './cleanroom/world';
 import type { AblationReport, EngineCheckpoint } from './cleanroom/communication';
 
@@ -29,7 +30,7 @@ export default function App() {
       if (next.episode !== lastEpisodeRef.current) {
         lastEpisodeRef.current = next.episode;
         setMetrics(next);
-        if (audioState === 'ready' && next.channelEnabled) playSignal(next.signalHz, next.signalAmplitude, next.signalDurationMs);
+        if (audioState === 'ready' && next.channelEnabled) playSignal(next.signalHz, next.signalAmplitude, next.signalDurationMs, 'sine');
       }
       raf = requestAnimationFrame(loop);
     };
@@ -38,18 +39,18 @@ export default function App() {
     return () => { cancelAnimationFrame(raf); window.clearInterval(meter); };
   }, [running, speed, audioState]);
 
-  const playSignal = (frequency: number, amplitude: number, durationMs: number) => {
+  const playSignal = (frequency: number, amplitude: number, durationMs: number, waveform: OscillatorType = 'sine') => {
     const ctx = audioRef.current;
     if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'sine';
+    osc.type = waveform;
     osc.frequency.setValueAtTime(Math.max(80, Math.min(1600, frequency)), now);
     const peak = 0.025 + Math.min(0.13, amplitude * 0.11);
-    const dur = Math.max(0.05, Math.min(0.45, durationMs / 1000));
+    const dur = Math.max(0.03, Math.min(0.5, durationMs / 1000));
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(peak, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(peak, now + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
     osc.connect(gain); gain.connect(ctx.destination); osc.start(now); osc.stop(now + dur + 0.02);
   };
@@ -67,6 +68,16 @@ export default function App() {
       playSignal(m.signalHz, m.signalAmplitude, m.signalDurationMs);
     } catch { setAudioState('failed'); }
   };
+
+  const triggerGroove = useCallback((trigger: GrooveTrigger, injectToWorld: boolean) => {
+    if (audioRef.current?.state === 'running') {
+      playSignal(trigger.frequencyHz, trigger.amplitude, trigger.durationMs, trigger.waveform);
+    }
+    if (injectToWorld) {
+      worldRef.current.injectSandboxPulse(trigger.frequencyHz, trigger.amplitude, trigger.durationMs);
+      setMetrics(worldRef.current.metrics());
+    }
+  }, []);
 
   const rebuild = () => {
     worldRef.current = new CleanroomWorld(seed || 302);
@@ -123,6 +134,7 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="font-display text-3xl font-black italic tracking-tight md:text-4xl">ORIGO CORE</h1>
                 <Badge green>CLEAN ROOM</Badge><Badge>ZERO HUMAN DATA</Badge><Badge green={pass}>{pass ? 'COMM PASS' : 'LEARNING'}</Badge>
+                {metrics.sandboxActive && <Badge amber>SANDBOX ACTIVE</Badge>}
               </div>
               <p className="mt-1 font-mono text-[10px] uppercase tracking-[.22em] text-[#666]">Autonomous world · continuous acoustic PPO · self-generated GAN curriculum</p>
             </div>
@@ -133,15 +145,17 @@ export default function App() {
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase">
-            <Badge>CLIPPED PPO</Badge><Badge>8 SPECTRAL BINS</Badge><Badge>GAN GEN {g.generation}</Badge><Badge>SEED {seed}</Badge>
+            <Badge>CLIPPED PPO</Badge><Badge>8 SPECTRAL BINS</Badge><Badge>GAN GEN {g.generation}</Badge><Badge>SEED {seed}</Badge><Badge>SANDBOX PULSES {metrics.sandboxPulses}</Badge>
             {[1,4,16,64].map(s => <button key={s} onClick={() => setSpeed(s)} className={`border px-2 py-1 ${speed===s?'border-[#00ff41] text-[#00ff41]':'border-[#333] text-[#777]'}`}>{s}X</button>)}
           </div>
         </header>
 
+        <GrooveBox agentAHz={c.leftHz} agentBHz={c.rightHz} onTrigger={triggerGroove}/>
+
         <main className="grid grid-cols-1 xl:grid-cols-[1fr_390px]">
           <section className="relative min-h-[590px] border-b border-[#222] xl:border-b-0 xl:border-r">
             <WorldCanvas key={worldVersion} world={worldRef.current}/>
-            <div className="pointer-events-none absolute left-4 top-4 flex gap-2"><Badge green>LIVE WORLD</Badge><Badge>{metrics.channelEnabled ? 'ACOUSTIC ON' : 'ACOUSTIC OFF'}</Badge></div>
+            <div className="pointer-events-none absolute left-4 top-4 flex flex-wrap gap-2"><Badge green>LIVE WORLD</Badge><Badge>{metrics.channelEnabled ? 'ACOUSTIC ON' : 'ACOUSTIC OFF'}</Badge>{metrics.sandboxActive && <Badge amber>HUMAN PERTURBATION</Badge>}</div>
           </section>
 
           <aside className="space-y-4 bg-[#090909] p-4">
@@ -151,6 +165,8 @@ export default function App() {
                 <Metric label="Episode" value={metrics.episode.toLocaleString()}/>
                 <Metric label="World steps" value={metrics.worldSteps.toLocaleString()}/>
                 <Metric label="Signal" value={`${Math.round(metrics.signalHz)} Hz`}/>
+                <Metric label="Sandbox pulses" value={metrics.sandboxPulses.toLocaleString()}/>
+                <Metric label="Sandbox episode" value={metrics.sandboxActive ? 'EXCLUDED' : 'NO'}/>
               </Grid>
             </Panel>
 
@@ -167,8 +183,8 @@ export default function App() {
               </Grid>
               <div className="mt-3 border border-[#222] bg-black p-3 font-mono text-[11px]">
                 <div className="mb-2 text-[#666]">INVENTED PROTOCOL</div>
-                <div className="flex justify-between"><span>Target A</span><span className="text-[#00ff41]">{Math.round(c.leftHz)} Hz · {c.leftAmplitude.toFixed(2)} amp · {Math.round(c.leftDurationMs)} ms</span></div>
-                <div className="mt-1 flex justify-between"><span>Target B</span><span className="text-[#ff3e00]">{Math.round(c.rightHz)} Hz · {c.rightAmplitude.toFixed(2)} amp · {Math.round(c.rightDurationMs)} ms</span></div>
+                <div className="flex justify-between gap-3"><span>Target A</span><span className="text-right text-[#00ff41]">{Math.round(c.leftHz)} Hz · {c.leftAmplitude.toFixed(2)} amp · {Math.round(c.leftDurationMs)} ms</span></div>
+                <div className="mt-1 flex justify-between gap-3"><span>Target B</span><span className="text-right text-[#ff3e00]">{Math.round(c.rightHz)} Hz · {c.rightAmplitude.toFixed(2)} amp · {Math.round(c.rightDurationMs)} ms</span></div>
               </div>
             </Panel>
 
@@ -181,7 +197,7 @@ export default function App() {
                 <Metric label="Obstacle bias" value={g.obstacleDensity.toFixed(3)}/>
                 <Metric label="Roughness" value={g.roughness.toFixed(3)}/>
               </Grid>
-              <p className="mt-2 font-mono text-[9px] leading-relaxed text-[#666]">GAN positives are challenging worlds generated by Origo itself. No external terrain corpus enters Core.</p>
+              <p className="mt-2 font-mono text-[9px] leading-relaxed text-[#666]">GAN positives are challenging worlds generated by Origo itself. Human groovebox episodes are excluded from its curriculum.</p>
             </Panel>
 
             <div className="grid grid-cols-2 gap-2">
@@ -211,7 +227,7 @@ export default function App() {
   );
 }
 
-function Badge({children,green=false}:{children:React.ReactNode;green?:boolean}){return <span className={`border px-2 py-1 font-mono text-[9px] uppercase tracking-wider ${green?'border-[#00ff41] text-[#00ff41]':'border-[#333] text-[#888]'}`}>{children}</span>}
+function Badge({children,green=false,amber=false}:{children:React.ReactNode;green?:boolean;amber?:boolean}){return <span className={`border px-2 py-1 font-mono text-[9px] uppercase tracking-wider ${green?'border-[#00ff41] text-[#00ff41]':amber?'border-[#6b4d12] text-[#d6a93a]':'border-[#333] text-[#888]'}`}>{children}</span>}
 function Button({children,onClick,green=false}:{children:React.ReactNode;onClick:()=>void;green?:boolean}){return <button onClick={onClick} className={`flex items-center justify-center gap-2 border px-3 py-2 font-mono text-[10px] uppercase transition-colors ${green?'border-[#00ff41] bg-[#00ff41]/10 text-[#00ff41]':'border-[#333] bg-black text-[#aaa] hover:border-[#777]'}`}>{React.Children.map(children,c=>React.isValidElement(c)?React.cloneElement(c as React.ReactElement<{className?:string}>,{className:'h-3.5 w-3.5'}):c)}</button>}
 function Panel({title,icon,children}:{title:string;icon:React.ReactNode;children:React.ReactNode}){return <section className="border border-[#222] bg-[#070707] p-3"><div className="mb-3 flex items-center gap-2 border-b border-[#222] pb-2 font-tech text-xs uppercase">{React.isValidElement(icon)?React.cloneElement(icon as React.ReactElement<{className?:string}>,{className:'h-4 w-4 text-[#00ff41]'}):icon}{title}</div>{children}</section>}
 function Grid({children}:{children:React.ReactNode}){return <div className="grid grid-cols-2 gap-2">{children}</div>}
