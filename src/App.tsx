@@ -60,7 +60,6 @@ export default function App() {
   const unlockAudio = () => {
     soundEngine.init();
     soundEngine.init();
-    setAudioUnlocked(true);
   };
 
   const handleUserInteract = () => {
@@ -79,6 +78,7 @@ export default function App() {
       unlockAudio();
       soundEngine.setMuted(false);
       setIsAudioMuted(false);
+      setAudioUnlocked(true);
       window.setTimeout(() => soundEngine.triggerChime(0.5), 80);
       return;
     }
