@@ -40,7 +40,6 @@ export default function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(engine.selectedAgentId);
   const [metrics, setMetrics] = useState(engine.getMetrics());
   const [isAudioMuted, setIsAudioMuted] = useState(soundEngine.getConfig().isMuted);
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Periodic metrics sync for UI state (every 100ms)
@@ -54,45 +53,21 @@ export default function App() {
     return () => clearInterval(interval);
   }, [engine]);
 
-  // Mobile/WebView audio needs AudioContext creation and resume to happen inside
-  // the same direct user gesture. The first init creates the context; the second
-  // immediately resumes it if the browser started it suspended.
-  const unlockAudio = () => {
-    soundEngine.init();
-    soundEngine.init();
-  };
-
+  // Initial user gesture to unlock WebAudio
   const handleUserInteract = () => {
-    if (!audioUnlocked) unlockAudio();
+    soundEngine.init();
   };
 
   const handlePresetSelect = (preset: EnvironmentPreset) => {
-    unlockAudio();
+    soundEngine.init();
     engine.applyPreset(preset);
   };
 
   const toggleAudio = () => {
-    // First press is ENABLE, never MUTE. This avoids the old state where the UI
-    // said "DSP Synth Live" even though WebAudio was still locked.
-    if (!audioUnlocked) {
-      unlockAudio();
-      soundEngine.setMuted(false);
-      setIsAudioMuted(false);
-      setAudioUnlocked(true);
-      window.setTimeout(() => soundEngine.triggerChime(0.5), 80);
-      return;
-    }
-
+    soundEngine.init();
     const newMuted = !isAudioMuted;
-    soundEngine.init();
-    soundEngine.init();
     soundEngine.setMuted(newMuted);
     setIsAudioMuted(newMuted);
-
-    // Audible confirmation whenever audio is enabled again.
-    if (!newMuted) {
-      window.setTimeout(() => soundEngine.triggerChime(0.5), 80);
-    }
   };
 
   const toggleFullscreen = () => {
@@ -166,14 +141,13 @@ export default function App() {
             id="header-audio-btn"
             onClick={toggleAudio}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.15em] font-mono font-bold transition-all border ${
-              audioUnlocked && isAudioMuted
+              isAudioMuted
                 ? 'bg-black border-[#ff3e00] text-[#ff3e00] hover:bg-[#ff3e00] hover:text-black'
                 : 'bg-black border-[#00ff41] text-[#00ff41] hover:bg-[#00ff41] hover:text-black'
             }`}
-            title={!audioUnlocked ? 'Enable WebAudio and play a test chime' : isAudioMuted ? 'Enable WebAudio' : 'Mute WebAudio'}
           >
-            {audioUnlocked && isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 animate-pulse" />}
-            <span>{!audioUnlocked ? 'Enable Audio' : isAudioMuted ? 'Audio Muted' : 'DSP Synth Live'}</span>
+            {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 animate-pulse" />}
+            <span>{isAudioMuted ? 'Audio Muted' : 'DSP Synth Live'}</span>
           </button>
 
           {/* Fullscreen Button */}
