@@ -54,12 +54,22 @@ export function WorldCanvas({ world }: { world: CleanroomWorld }) {
       for (const wave of world.waves) {
         ctx.beginPath();
         ctx.arc(wave.x * w, wave.y * h, wave.radius * Math.min(w, h), 0, Math.PI * 2);
-        ctx.strokeStyle = '#00ff41';
-        ctx.globalAlpha = Math.min(0.75, wave.intensity);
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = wave.sandbox ? '#d6a93a' : '#00ff41';
+        ctx.globalAlpha = Math.min(0.78, wave.intensity);
+        ctx.lineWidth = wave.sandbox ? 2.5 : 2;
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
+
+      const sandboxPresent = world.waves.some(wave => wave.sandbox);
+      if (sandboxPresent) {
+        const sx = w * 0.5;
+        const sy = h * 0.09;
+        ctx.fillStyle = '#d6a93a';
+        ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.font = '9px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('GROOVEBOX', sx, sy - 12);
+      }
 
       for (const node of world.nodes) {
         const x = node.x * w;
@@ -120,12 +130,12 @@ export function WorldCanvas({ world }: { world: CleanroomWorld }) {
 
       const m = world.metrics();
       ctx.fillStyle = 'rgba(0,0,0,.82)';
-      ctx.fillRect(12, h - 56, Math.min(430, w - 24), 42);
-      ctx.strokeStyle = '#252525'; ctx.strokeRect(12, h - 56, Math.min(430, w - 24), 42);
+      ctx.fillRect(12, h - 56, Math.min(470, w - 24), 42);
+      ctx.strokeStyle = '#252525'; ctx.strokeRect(12, h - 56, Math.min(470, w - 24), 42);
       ctx.fillStyle = '#8a8a8a'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
-      ctx.fillText(`EP ${m.episode}  WORLD ${Math.round(m.recentWorldSuccess * 100)}%  GAN ${m.gan.generation}`, 24, h - 35);
-      ctx.fillStyle = world.channelEnabled ? '#00ff41' : '#ff3e00';
-      ctx.fillText(world.channelEnabled ? `${Math.round(m.signalHz)} Hz · acoustic channel active` : 'ACOUSTIC CHANNEL DISABLED', 24, h - 20);
+      ctx.fillText(`EP ${m.episode}  WORLD ${Math.round(m.recentWorldSuccess * 100)}%  GAN ${m.gan.generation}  USER ${m.sandboxPulses}`, 24, h - 35);
+      ctx.fillStyle = m.sandboxActive ? '#d6a93a' : world.channelEnabled ? '#00ff41' : '#ff3e00';
+      ctx.fillText(m.sandboxActive ? 'SANDBOX EPISODE · EXCLUDED FROM PPO/GAN' : world.channelEnabled ? `${Math.round(m.signalHz)} Hz · acoustic channel active` : 'ACOUSTIC CHANNEL DISABLED', 24, h - 20);
 
       frame = requestAnimationFrame(draw);
     };
