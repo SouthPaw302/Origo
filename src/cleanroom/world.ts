@@ -29,6 +29,7 @@ export interface WorldWave {
   radius: number;
   intensity: number;
   frequencyHz: number;
+  sandbox?: boolean;
 }
 
 export interface WorldMetrics {
@@ -41,6 +42,8 @@ export interface WorldMetrics {
   signalAmplitude: number;
   signalDurationMs: number;
   channelEnabled: boolean;
+  sandboxActive: boolean;
+  sandboxPulses: number;
   communication: TrainMetrics;
   gan: GanMetrics;
 }
@@ -66,6 +69,9 @@ export class CleanroomWorld {
   private signalDurationMs = 0;
   private outcomes: number[] = [];
   private lastCommMetrics: TrainMetrics;
+  private sandboxTouched = false;
+  private sandboxHeadingBias = 0;
+  private sandboxPulseCount = 0;
 
   constructor(public readonly seed = 302) {
     this.rng = new SeededRandom((seed ^ 0xa341316c) >>> 0);
@@ -136,6 +142,8 @@ export class CleanroomWorld {
   private startEpisode() {
     this.episode++;
     this.episodeStep = 0;
+    this.sandboxTouched = false;
+    this.sandboxHeadingBias = 0;
 
     const sender = this.agents[0];
     const receiver = this.agents[1];
@@ -161,14 +169,16 @@ export class CleanroomWorld {
   }
 
   private finishEpisode(success: boolean) {
-    this.outcomes.push(success ? 1 : 0);
-    if (this.outcomes.length > 60) this.outcomes.shift();
-    this.lastCommMetrics = this.communication.trainBatch(384);
+    if (!this.sandboxTouched) {
+      this.outcomes.push(success ? 1 : 0);
+      if (this.outcomes.length > 60) this.outcomes.shift();
+      this.lastCommMetrics = this.communication.trainBatch(384);
 
-    if (this.episode % 6 === 0) {
-      this.gan.learn(this.world, this.recentSuccess());
-      this.world = this.gan.generate();
-      this.resetGeometry();
+      if (this.episode % 6 === 0) {
+        this.gan.learn(this.world, this.recentSuccess());
+        this.world = this.gan.generate();
+        this.resetGeometry();
+      }
     }
     this.startEpisode();
   }
@@ -178,12 +188,33 @@ export class CleanroomWorld {
     return this.outcomes.reduce((a, b) => a + b, 0) / this.outcomes.length;
   }
 
+  injectSandboxPulse(frequencyHz: number, amplitude: number, durationMs: number) {
+    const freq = Math.max(80, Math.min(1600, frequencyHz));
+    const amp = clamp(amplitude, 0.02, 1);
+    const duration = Math.max(30, Math.min(500, durationMs));
+    this.sandboxTouched = true;
+    this.sandboxPulseCount++;
+
+    const normalized = clamp((freq - 80) / 1520, 0, 1) * 2 - 1;
+    this.sandboxHeadingBias = Math.max(-1.1, Math.min(1.1, this.sandboxHeadingBias + normalized * amp * 0.5));
+    this.waves.push({
+      x: 0.50,
+      y: 0.09,
+      radius: 0.012,
+      intensity: amp,
+      frequencyHz: freq,
+      sandbox: true,
+    });
+
+    this.sandboxHeadingBias *= 0.85 + (duration / 500) * 0.15;
+  }
+
   private moveReceiver(dt: number) {
     const receiver = this.agents[1];
     const target = this.receiverChoice === -1 ? this.nodes[0] : this.nodes[1];
     const dx = target.x - receiver.x;
     const dy = target.y - receiver.y;
-    const desired = Math.atan2(dy, dx);
+    const desired = Math.atan2(dy, dx) + this.sandboxHeadingBias;
     receiver.rays = [-0.8, -0.4, 0, 0.4, 0.8].map(offset => this.raycast(receiver.x, receiver.y, desired + offset));
 
     const candidates = [0, 0.45, -0.45, 0.9, -0.9, 1.35, -1.35];
@@ -212,6 +243,9 @@ export class CleanroomWorld {
     receiver.trail.push({ x: receiver.x, y: receiver.y });
     if (receiver.trail.length > 45) receiver.trail.shift();
 
+    this.sandboxHeadingBias *= 0.987;
+    if (Math.abs(this.sandboxHeadingBias) < 0.002) this.sandboxHeadingBias = 0;
+
     const aDist = distance(receiver.x, receiver.y, this.nodes[0].x, this.nodes[0].y);
     const bDist = distance(receiver.x, receiver.y, this.nodes[1].x, this.nodes[1].y);
     if (aDist < 0.035 || bDist < 0.035) {
@@ -229,11 +263,11 @@ export class CleanroomWorld {
       this.episodeStep++;
       this.moveReceiver(1);
       for (const wave of this.waves) {
-        wave.radius += 0.006;
-        wave.intensity *= 0.986;
+        wave.radius += wave.sandbox ? 0.008 : 0.006;
+        wave.intensity *= wave.sandbox ? 0.982 : 0.986;
       }
       this.waves = this.waves.filter(w => w.radius < 0.65 && w.intensity > 0.025);
-      if (this.worldSteps % 120 === 0) this.lastCommMetrics = this.communication.trainBatch(128);
+      if (!this.sandboxTouched && this.worldSteps % 120 === 0) this.lastCommMetrics = this.communication.trainBatch(128);
     }
   }
 
@@ -263,6 +297,8 @@ export class CleanroomWorld {
       signalAmplitude: this.signalAmplitude,
       signalDurationMs: this.signalDurationMs,
       channelEnabled: this.channelEnabled,
+      sandboxActive: this.sandboxTouched || Math.abs(this.sandboxHeadingBias) > 0.002,
+      sandboxPulses: this.sandboxPulseCount,
       communication: this.lastCommMetrics,
       gan: this.gan.metrics(),
     };
