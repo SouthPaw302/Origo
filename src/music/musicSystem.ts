@@ -57,6 +57,7 @@ export class OrigoMusicSystem {
       stepsPerBeat: this.clock.stepsPerBeat,
       beatsPerBar: this.clock.beatsPerBar,
       events: [],
+      motifs: [],
     };
     this.recording = true;
     this.emit();
@@ -84,6 +85,7 @@ export class OrigoMusicSystem {
     const events = this.director.collect(engine, this.clock);
     if (events.length) {
       this.session.events.push(...events);
+      this.session.motifs = this.director.getMotifs();
       this.emit();
     }
   }
@@ -100,6 +102,7 @@ export class OrigoMusicSystem {
       eventCount: events.length,
       barsCaptured: last ? last.position.bar + 1 : 0,
       lastEventAtStep: last?.step ?? 0,
+      motifCount: this.session?.motifs?.length ?? 0,
     };
   }
 
