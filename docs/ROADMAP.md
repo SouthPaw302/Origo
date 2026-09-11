@@ -86,17 +86,24 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Persist Musical DNA in Origo session JSON and expose a compact analysis summary in Aether manifests.
 - Surface the signals in a user-facing Musical DNA panel.
 
-### 13 — Optional Embedded Model Adapters — **CURRENT**
+### 13 — Optional Embedded Model Adapters — **DONE (initial phrase adapter)**
 
 - Keep models optional and outside the deterministic music/simulation core.
-- Define worker-friendly input/output contracts for phrase, groove and macro-structure helpers.
-- Never allow a model to own the musical clock or directly mutate authoritative simulation state.
-- Prefer symbolic/small models over full audio generation for the core browser experience.
-- Require capability checks, graceful fallback and explicit model loading.
-- Evaluate Magenta.js symbolic models behind an adapter despite its older published npm runtime; do not hard-wire it into core.
-- Keep larger audio generators such as Magenta RealTime or MusicGen as external/optional renderers, not baseline dependencies.
+- Load the browser phrase model only after explicit user opt-in and isolate it in a Web Worker.
+- Seed the monophonic phrase model only from Resonator/Glider melody events, collapsed to one sixteenth-note slot.
+- Preview and reject suggestions before they affect the ecosystem.
+- Accepted guidance changes pitch contour only; creatures still determine event timing and Origo retains world/BPM/transport authority.
+- Annotate guided events in session JSON and expose guided-event metadata to Aether without changing `clockAuthority: external-master`.
+- Preserve normal Origo operation when the model is unloaded or unavailable.
+- Keep larger audio generators such as Magenta RealTime or MusicGen outside the baseline browser core.
 
-14. Replace or repair environmental generative learning.
+### 14 — Environmental Generative Learning — **CURRENT**
+
+- Replace the current cosmetic GAN behavior with measurable adaptive environment generation.
+- Keep generated environments in the same representation used for evaluation.
+- Prefer a transparent mutation/selection or regret-driven curriculum before adding a larger neural generator.
+- Preserve deterministic seeds so environments can later be replayed and compared.
+
 15. Derive large-scale musical sections from ecological events.
 16. Add deterministic seeds, replay, branching and world lineage.
 17. Add optional embedded composer / observer intelligence.
