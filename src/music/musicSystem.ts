@@ -56,7 +56,13 @@ export class OrigoMusicSystem {
     const preset = engine.activePreset;
     const tempo = preset.soundPreset.tempoBpm;
     sampleInstrumentEngine.setTempo(tempo);
-    this.clock = new OrigoMusicClock(tempo, recordingStepsPerBeat(engine, tempo));
+    this.clock = new OrigoMusicClock(
+      tempo,
+      recordingStepsPerBeat(engine, tempo),
+      4,
+      4,
+      engine.stepCount
+    );
     this.director.reset();
     this.sectionTracker.reset();
     this.lastProcessedStep = -1;
@@ -79,6 +85,12 @@ export class OrigoMusicSystem {
       sections: [],
     };
     this.recording = true;
+
+    // A return layer armed from the prior take begins at this take's exact bar-zero boundary.
+    if (sampleInstrumentEngine.getStatus().aetherLoop.armed) {
+      sampleInstrumentEngine.startAetherLoop();
+    }
+
     this.emit();
   }
 
@@ -187,10 +199,11 @@ export class OrigoMusicSystem {
   }
 
   /**
-   * Song scaffold: render the current take, load it as the Aether return loop,
-   * and optionally start it immediately so a new ecosystem take can overdub it.
+   * Song scaffold: render the current take into an Aether return layer.
+   * By default it is armed, not played immediately; pressing Record New Take
+   * launches it at the new take's exact bar-zero boundary.
    */
-  public async feedTakeBackAsLoop(autoplay = true) {
+  public async feedTakeBackAsLoop(armForNextTake = true) {
     if (!this.session || this.session.events.length === 0) return false;
     this.refreshAnalysis(true);
     const wav = await renderSessionToWav(this.session);
@@ -202,7 +215,11 @@ export class OrigoMusicSystem {
       bars
     );
     sampleInstrumentEngine.setTempo(this.session.tempoBpm);
-    if (autoplay) sampleInstrumentEngine.startAetherLoop();
+    if (armForNextTake) {
+      sampleInstrumentEngine.armAetherLoopForNextTake();
+    } else {
+      sampleInstrumentEngine.startAetherLoop();
+    }
     return true;
   }
 
