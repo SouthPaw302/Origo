@@ -1,5 +1,6 @@
 import { Agent, SPECIES_CONFIGS } from './agent';
 import { SimulationEngine } from './engine';
+import { getAgentInteractionCue } from './interactionPacing';
 
 const TARGET_TICK_HZ = 24;
 const TICK_MS = 1000 / TARGET_TICK_HZ;
@@ -76,7 +77,9 @@ export function installWorldPacing() {
     }
 
     const speed = Math.hypot(this.vx, this.vy);
-    const maxSpeed = Math.max(0.5, this.config.baseSpeed * 1.35);
+    const interaction = getAgentInteractionCue(this);
+    const maxSpeedMultiplier = interaction.bursting ? 2.05 : 1.35;
+    const maxSpeed = Math.max(0.5, this.config.baseSpeed * maxSpeedMultiplier);
     if (speed > maxSpeed) {
       const scale = maxSpeed / speed;
       this.vx *= scale;
