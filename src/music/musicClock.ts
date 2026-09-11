@@ -11,7 +11,7 @@ export class OrigoMusicClock {
     subdivisionsPerBeat: number = 4
   ) {
     this.tempoBpm = Math.max(30, Math.min(240, tempoBpm));
-    this.stepsPerBeat = Math.max(1, Math.floor(stepsPerBeat));
+    this.stepsPerBeat = Math.max(0.25, Number.isFinite(stepsPerBeat) ? stepsPerBeat : 24);
     this.beatsPerBar = Math.max(1, Math.floor(beatsPerBar));
     this.subdivisionsPerBeat = Math.max(1, Math.floor(subdivisionsPerBeat));
   }
