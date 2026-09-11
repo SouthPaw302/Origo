@@ -1,4 +1,5 @@
 import { SimulationEngine } from '../simulation/engine';
+import { WORLD_PACING } from '../simulation/worldPacing';
 import { buildAetherSourceManifest } from '../integration/aetherStreamContract';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicDirector } from './musicDirector';
@@ -20,6 +21,12 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function safeName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'origo';
+}
+
+function recordingStepsPerBeat(engine: SimulationEngine, tempoBpm: number) {
+  const pace = Math.max(0.25, Math.min(2.5, engine.simulationSpeed));
+  const effectiveStepsPerSecond = WORLD_PACING.targetTickHz * pace;
+  return effectiveStepsPerSecond * (60 / Math.max(30, tempoBpm));
 }
 
 export class OrigoMusicSystem {
@@ -44,7 +51,7 @@ export class OrigoMusicSystem {
   public start(engine: SimulationEngine) {
     const preset = engine.activePreset;
     const tempo = preset.soundPreset.tempoBpm;
-    this.clock = new OrigoMusicClock(tempo);
+    this.clock = new OrigoMusicClock(tempo, recordingStepsPerBeat(engine, tempo));
     this.director.reset();
     this.lastProcessedStep = -1;
     this.lastAnalysisEventCount = 0;
