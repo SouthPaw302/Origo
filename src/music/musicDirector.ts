@@ -2,6 +2,7 @@ import { SpeciesType } from '../types';
 import { SimulationEngine } from '../simulation/engine';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicalEvent } from './types';
+import { OrigoMotifMemory } from './motifMemory';
 
 const SPECIES_OCTAVE: Record<SpeciesType, number> = {
   [SpeciesType.Resonator]: 12,
@@ -32,6 +33,7 @@ function eventKind(species: SpeciesType, pulse: number, terraform: number, abili
 
 export class OrigoMusicDirector {
   private lastQuantizedSlot = new Map<string, number>();
+  private motifMemory = new OrigoMotifMemory();
 
   public collect(engine: SimulationEngine, clock: OrigoMusicClock): OrigoMusicalEvent[] {
     const preset = engine.activePreset.soundPreset;
@@ -54,7 +56,8 @@ export class OrigoMusicDirector {
       );
       if (behavioralIntensity < 0.34) continue;
 
-      const key = `${agent.id}:${eventKind(species, pulse, terraform, ability)}`;
+      const kind = eventKind(species, pulse, terraform, ability);
+      const key = `${agent.id}:${kind}`;
       if (this.lastQuantizedSlot.get(key) === slotStep) continue;
       this.lastQuantizedSlot.set(key, slotStep);
 
@@ -62,26 +65,27 @@ export class OrigoMusicDirector {
       const yNorm = clamp(agent.y / Math.max(1, engine.env.height), 0, 1);
       const xNorm = clamp(agent.x / Math.max(1, engine.env.width), 0, 1);
       const scaleIndex = Math.min(scale.length - 1, Math.floor((1 - yNorm) * scale.length));
-      const midiNote = clamp(
+      const proposedMidi = clamp(
         Math.round(preset.rootNote + scale[scaleIndex] + SPECIES_OCTAVE[species]),
         24,
         108
       );
 
       const position = clock.positionForStep(engine.stepCount);
+      const shaped = this.motifMemory.shapePitch(species, proposedMidi, position.bar);
       const harmonicField = engine.env.sampleHarmonicField(agent.x, agent.y);
       const terrain = engine.env.sampleTerrain(agent.x, agent.y);
       const acousticPressure = engine.env.sampleAcousticPressure(agent.x, agent.y);
 
       events.push({
         id: `evt_${engine.stepCount}_${agent.id}_${events.length}`,
-        type: eventKind(species, pulse, terraform, ability),
+        type: kind,
         agentId: agent.id,
         species,
         generation: agent.generation,
         step: engine.stepCount,
         position,
-        midiNote,
+        midiNote: shaped.midiNote,
         velocity: clamp(0.25 + behavioralIntensity * 0.6 + energyNorm * 0.15, 0.05, 1),
         durationBeats: SPECIES_DURATION[species],
         pan: clamp(xNorm * 2 - 1, -1, 1),
@@ -89,15 +93,22 @@ export class OrigoMusicDirector {
         energy: energyNorm,
         xNorm,
         yNorm,
+        motif: shaped.motif,
         action: { thrust, steer, pulse, terraform, ability },
         environment: { harmonicField, terrain, acousticPressure },
       });
     }
 
+    this.motifMemory.observe(events);
     return events;
+  }
+
+  public getMotifs() {
+    return this.motifMemory.getMotifs();
   }
 
   public reset() {
     this.lastQuantizedSlot.clear();
+    this.motifMemory.reset();
   }
 }
