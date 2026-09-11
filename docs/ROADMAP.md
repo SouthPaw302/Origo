@@ -16,26 +16,33 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 
 ### 9.5 — Usability + Sandbox QA — **DONE**
 
-- Replace developer-first navigation labels with Explore / Evolution / Sound / World.
-- Add a default Explore home instead of dropping users directly into neural-network internals.
-- Add one-click **Calm Mix** and always-visible master audio controls.
-- Make world recording a first-class action from the header and simplify the recorder workflow.
-- Keep Libertas/AetherStream export under an advanced section rather than normal-user controls.
-- Make the inspector/control deck collapsible and mobile-safe.
-- Add first-run guidance and keyboard/focus accessibility.
-- Validate GUI changes in a local sandbox server before GitHub/Vercel deployment.
-- Keep the simulation canvas visually dominant.
+- Explore / Evolution / Sound / World navigation.
+- Default Explore home instead of developer internals.
+- One-click Calm Mix and always-visible master audio controls.
+- First-class world recording and simplified exports.
+- Collapsible/mobile-safe control deck and first-run guidance.
+- Local sandbox server and deployment validation.
 
-### 9.6 — Audio Traffic Control — **CURRENT**
+### 9.6 — Audio Traffic Control — **DONE**
 
-- Cap the number of continuous neural synth voices active at once.
-- Limit burst events globally so large populations cannot flood the mix.
-- Apply species-specific event cooldowns so one behavior cannot dominate the sound field.
+- Cap simultaneous continuous neural synth voices.
+- Limit burst events globally.
+- Apply species-specific event cooldowns.
 - Rate-limit reward/energy chimes.
-- Keep the governor outside the DSP engine so it can be tuned or removed independently.
-- Preserve **Calm Mix** as the immediate user-facing way to reduce intensity.
+- Keep the governor independent from the DSP engine.
 
-10. Add composition / motif memory.
+### 10 — Composition / Motif Memory — **CURRENT**
+
+- Detect repeating four-event musical contours independently for each species.
+- Use transposition-invariant pitch-interval and quantized-rhythm signatures.
+- Establish a motif only after it genuinely recurs.
+- Track motif occurrence, intensity, first/last bar and strength.
+- Annotate session events when motifs emerge or are deliberately recalled.
+- Recall each species' strongest motif on a staggered four-bar cycle so the world gains memory without becoming a loop.
+- Persist the strongest motifs in Origo session JSON.
+- Surface live motif count in World Recorder.
+- Expose motif-lineage capability in the Libertas/AetherStream source manifest while retaining external-master clock authority.
+
 11. Add real instrument and SoundFont layer while retaining Origo synthesis.
 12. Add musical analysis and measurable musical fitness.
 13. Add specialized embedded browser music models where they improve structure.
