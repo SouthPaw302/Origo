@@ -15,6 +15,7 @@ export interface OrigoAetherSourceManifest {
   beatsPerBar: number;
   durationBeats: number;
   eventCount: number;
+  motifCount: number;
   preset: {
     id: string;
     name: string;
@@ -25,6 +26,7 @@ export interface OrigoAetherSourceManifest {
     renderedAudio: boolean;
     midi: boolean;
     deterministicEventTimeline: boolean;
+    motifLineage: boolean;
     quantizedLaunch: boolean;
     resampleSource: boolean;
   };
@@ -46,6 +48,7 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
     beatsPerBar: session.beatsPerBar,
     durationBeats,
     eventCount: session.events.length,
+    motifCount: session.motifs?.length ?? 0,
     preset: {
       id: session.presetId,
       name: session.presetName,
@@ -56,6 +59,7 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
       renderedAudio: true,
       midi: true,
       deterministicEventTimeline: true,
+      motifLineage: true,
       quantizedLaunch: true,
       resampleSource: true,
     },
