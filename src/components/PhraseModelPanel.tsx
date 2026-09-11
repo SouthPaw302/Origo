@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BrainCircuit, Check, Download, RefreshCw, Sparkles, Trash2, X } from 'lucide-react';
+import { SpeciesType } from '../types';
 import { origoMusicSystem } from '../music/musicSystem';
 import { phraseGuidance } from '../models/phraseGuidance';
 import { phraseModel } from '../models/musicModelRegistry';
@@ -15,6 +16,7 @@ export function PhraseModelPanel() {
   const [, forceRefresh] = useState(0);
   const [suggestion, setSuggestion] = useState<PhraseSuggestion | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [temperature, setTemperature] = useState(0.9);
 
   useEffect(() => {
@@ -31,7 +33,10 @@ export function PhraseModelPanel() {
   const session = origoMusicSystem.getSession();
   const activeSuggestion = phraseGuidance.getActiveSuggestion();
   const remaining = phraseGuidance.getRemainingEventCount();
-  const canSuggest = Boolean(session && session.events.length >= 3 && modelStatus.state === 'ready');
+  const melodicEventCount = session?.events.filter((event) =>
+    event.species === SpeciesType.Resonator || event.species === SpeciesType.Glider
+  ).length ?? 0;
+  const canSuggest = melodicEventCount >= 3 && modelStatus.state === 'ready';
 
   const preview = useMemo(() => {
     if (!suggestion) return '';
@@ -39,18 +44,20 @@ export function PhraseModelPanel() {
   }, [suggestion]);
 
   const load = async () => {
+    setGenerationError(null);
     try { await phraseModel.load(); }
-    catch { /* modelStatus surfaces the error */ }
+    catch { /* modelStatus surfaces the load error */ }
   };
 
   const generate = async () => {
     if (!session) return;
     setGenerating(true);
+    setGenerationError(null);
     try {
       const next = await phraseModel.generateFromSession(session, 16, temperature);
       setSuggestion(next);
-    } catch {
-      // Adapter exposes failures through its status or thrown message; keep UI stable.
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Unable to generate a phrase suggestion.');
     } finally {
       setGenerating(false);
     }
@@ -60,6 +67,7 @@ export function PhraseModelPanel() {
     if (!suggestion) return;
     phraseGuidance.activate(suggestion);
     setSuggestion(null);
+    setGenerationError(null);
     forceRefresh((value) => value + 1);
   };
 
@@ -118,7 +126,8 @@ export function PhraseModelPanel() {
             {generating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             {generating ? 'Thinking…' : 'Suggest Phrase Variation'}
           </button>
-          {!canSuggest && !generating && <p className="mt-1.5 text-[9px] font-sans text-[#666]">Record at least three Resonator/Glider melody events first.</p>}
+          {!canSuggest && !generating && <p className="mt-1.5 text-[9px] font-sans text-[#666]">Record at least three Resonator/Glider melody events first. Current melody events: {melodicEventCount}.</p>}
+          {generationError && <p className="mt-1.5 text-[9px] font-sans leading-relaxed text-[#ff6538]">{generationError}</p>}
         </>
       )}
 
