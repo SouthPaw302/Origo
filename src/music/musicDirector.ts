@@ -2,7 +2,7 @@ import { SpeciesType } from '../types';
 import { SimulationEngine } from '../simulation/engine';
 import { phraseGuidance } from '../models/phraseGuidance';
 import { OrigoMusicClock } from './musicClock';
-import { OrigoMusicalEvent } from './types';
+import { EcologicalSectionBias, OrigoMusicalEvent } from './types';
 import { OrigoMotifMemory } from './motifMemory';
 
 const SPECIES_OCTAVE: Record<SpeciesType, number> = {
@@ -17,6 +17,12 @@ const SPECIES_DURATION: Record<SpeciesType, number> = {
   [SpeciesType.Predator]: 0.25,
   [SpeciesType.Architect]: 2,
   [SpeciesType.Glider]: 0.5,
+};
+
+const DEFAULT_SECTION_BIAS: EcologicalSectionBias = {
+  density: 0.58,
+  registerSemitones: 0,
+  motifRecallPressure: 0.65,
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -39,11 +45,22 @@ function canReceivePhraseGuidance(species: SpeciesType) {
 export class OrigoMusicDirector {
   private lastQuantizedSlot = new Map<string, number>();
   private motifMemory = new OrigoMotifMemory();
+  private sectionBias: EcologicalSectionBias = { ...DEFAULT_SECTION_BIAS };
+
+  public setSectionBias(bias: EcologicalSectionBias) {
+    this.sectionBias = {
+      density: clamp(bias.density, 0.15, 1),
+      registerSemitones: clamp(Math.round(bias.registerSemitones), -12, 12),
+      motifRecallPressure: clamp(bias.motifRecallPressure, 0, 1),
+    };
+    this.motifMemory.setRecallPressure(this.sectionBias.motifRecallPressure);
+  }
 
   public collect(engine: SimulationEngine, clock: OrigoMusicClock): OrigoMusicalEvent[] {
     const preset = engine.activePreset.soundPreset;
     const events: OrigoMusicalEvent[] = [];
     const slotStep = clock.quantizedStep(engine.stepCount);
+    const intensityThreshold = 0.34 + (1 - this.sectionBias.density) * 0.18;
 
     for (const agent of engine.agents) {
       const actions: number[] = agent.lastActionOutputs || [];
@@ -59,7 +76,7 @@ export class OrigoMusicDirector {
         0,
         1
       );
-      if (behavioralIntensity < 0.34) continue;
+      if (behavioralIntensity < intensityThreshold) continue;
 
       const kind = eventKind(species, pulse, terraform, ability);
       const key = `${agent.id}:${kind}`;
@@ -71,7 +88,12 @@ export class OrigoMusicDirector {
       const xNorm = clamp(agent.x / Math.max(1, engine.env.width), 0, 1);
       const scaleIndex = Math.min(scale.length - 1, Math.floor((1 - yNorm) * scale.length));
       const proposedMidi = clamp(
-        Math.round(preset.rootNote + scale[scaleIndex] + SPECIES_OCTAVE[species]),
+        Math.round(
+          preset.rootNote +
+          scale[scaleIndex] +
+          SPECIES_OCTAVE[species] +
+          this.sectionBias.registerSemitones
+        ),
         24,
         108
       );
@@ -118,6 +140,8 @@ export class OrigoMusicDirector {
 
   public reset() {
     this.lastQuantizedSlot.clear();
+    this.sectionBias = { ...DEFAULT_SECTION_BIAS };
     this.motifMemory.reset();
+    this.motifMemory.setRecallPressure(this.sectionBias.motifRecallPressure);
   }
 }
