@@ -8,19 +8,21 @@ export interface AudioTrafficConfig {
   maxContinuousVoices: number;
   continuousUpdateIntervalMs: number;
   chimeIntervalMs: number;
+  eventGridMs: number;
   speciesCooldownMs: Record<SpeciesType, number>;
 }
 
 export const DEFAULT_AUDIO_TRAFFIC_CONFIG: AudioTrafficConfig = {
-  maxEventsPerSecond: 8,
-  maxContinuousVoices: 5,
-  continuousUpdateIntervalMs: 100,
-  chimeIntervalMs: 180,
+  maxEventsPerSecond: 4,
+  maxContinuousVoices: 3,
+  continuousUpdateIntervalMs: 180,
+  chimeIntervalMs: 420,
+  eventGridMs: 125,
   speciesCooldownMs: {
-    [SpeciesType.Resonator]: 110,
-    [SpeciesType.Predator]: 140,
-    [SpeciesType.Architect]: 170,
-    [SpeciesType.Glider]: 90,
+    [SpeciesType.Resonator]: 260,
+    [SpeciesType.Predator]: 360,
+    [SpeciesType.Architect]: 420,
+    [SpeciesType.Glider]: 220,
   },
 };
 
@@ -69,6 +71,12 @@ export class AudioTrafficLimiter {
     return true;
   }
 
+  public quantizedDelay(nowMs: number): number {
+    const grid = Math.max(1, this.config.eventGridMs);
+    const next = Math.ceil(nowMs / grid) * grid;
+    return Math.max(0, next - nowMs);
+  }
+
   public reset() {
     this.recentEvents = [];
     this.lastSpeciesEvent.clear();
@@ -88,9 +96,21 @@ export class AudioTrafficLimiter {
 const limiter = new AudioTrafficLimiter();
 let installed = false;
 
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
 export function installAudioGovernor() {
   if (installed) return limiter;
   installed = true;
+
+  // Start from a quieter, darker mix. Users can still raise any layer manually.
+  soundEngine.setMasterVolume(0.52);
+  soundEngine.setNeuralSynthVolume(0.22);
+  soundEngine.setDroneVolume(0.14);
+  soundEngine.setReverbMix(0.26);
+  soundEngine.setDelayMix(0.1);
+  soundEngine.setFilterCutoff(3600);
 
   const originalAgentSound = soundEngine.triggerAgentSound.bind(soundEngine);
   const originalContinuous = soundEngine.updateAgentContinuousSynth.bind(soundEngine);
@@ -98,29 +118,51 @@ export function installAudioGovernor() {
   const originalRelease = soundEngine.releaseAgentSynth.bind(soundEngine);
 
   soundEngine.triggerAgentSound = (...args: Parameters<typeof originalAgentSound>) => {
-    const [species, , normalizedPitch, intensity = 0.5] = args;
-    if (!limiter.allowAgentEvent(species, performance.now())) return;
+    const [species, normalizedX, normalizedPitch, intensity = 0.5, tdError = 0] = args;
+    const now = performance.now();
+    if (!limiter.allowAgentEvent(species, now)) return;
 
-    if (soundFontInstrumentEngine.shouldPlayInstrument()) {
-      const config = soundEngine.getConfig();
-      const midi = quantizeToMidi(normalizedPitch, config.rootMidi, config.scaleKey);
-      soundFontInstrumentEngine.playSpeciesNote(species, midi, intensity);
-    }
+    const softenedPitch = 0.12 + clamp01(normalizedPitch) * 0.72;
+    const softenedIntensity = Math.max(0.16, Math.min(0.72, clamp01(intensity) * 0.68));
+    const softenedTdError = Math.max(0, Math.min(0.35, Math.abs(tdError) * 0.35));
+    const delay = limiter.quantizedDelay(now);
 
-    if (soundFontInstrumentEngine.shouldPlayNative()) {
-      originalAgentSound(...args);
-    }
+    window.setTimeout(() => {
+      if (soundFontInstrumentEngine.shouldPlayInstrument()) {
+        const config = soundEngine.getConfig();
+        const midi = quantizeToMidi(softenedPitch, config.rootMidi, config.scaleKey);
+        soundFontInstrumentEngine.playSpeciesNote(species, midi, softenedIntensity);
+      }
+
+      if (soundFontInstrumentEngine.shouldPlayNative()) {
+        originalAgentSound(species, normalizedX, softenedPitch, softenedIntensity, softenedTdError);
+      }
+    }, delay);
   };
 
   soundEngine.updateAgentContinuousSynth = (params: SynthModulationParams) => {
     if (!soundFontInstrumentEngine.shouldPlayNative()) return;
     if (!limiter.allowContinuous(params, performance.now())) return;
-    originalContinuous(params);
+
+    const softened: SynthModulationParams = {
+      ...params,
+      amplitude: clamp01(params.amplitude) * 0.45,
+      fmModulationIndex: clamp01(params.fmModulationIndex) * 0.45,
+      timbreMorph: clamp01(params.timbreMorph) * 0.7,
+      rhythmRate: Math.max(0.6, Math.min(3.2, params.rhythmRate * 0.65)),
+      filterCutoff: Math.max(450, Math.min(4200, params.filterCutoff * 0.8)),
+      filterResonance: Math.max(0.5, Math.min(3.8, params.filterResonance)),
+      reverbSend: Math.min(0.24, params.reverbSend),
+      delaySend: Math.min(0.1, params.delaySend),
+    };
+
+    originalContinuous(softened);
   };
 
   soundEngine.triggerChime = (...args: Parameters<typeof originalChime>) => {
-    if (!limiter.allowChime(performance.now())) return;
-    originalChime(...args);
+    const now = performance.now();
+    if (!limiter.allowChime(now)) return;
+    window.setTimeout(() => originalChime(...args), limiter.quantizedDelay(now));
   };
 
   soundEngine.releaseAgentSynth = (agentId: string) => {

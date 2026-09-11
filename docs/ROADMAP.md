@@ -31,6 +31,17 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Rate-limit reward/energy chimes.
 - Keep the governor independent from the DSP engine.
 
+### 9.7 — World Pacing + Mix Polish — **IN VALIDATION**
+
+- Decouple world updates from display refresh rate with a fixed 24 Hz logical simulation clock.
+- Reduce species baseline movement and clamp extreme velocity spikes.
+- Stretch pulse and special-ability cooldowns so actions read as events rather than continuous noise.
+- Replace 5x/10x turbo controls with 0.5x / 1x / 1.5x / 2x world pace controls.
+- Reduce live sound density to four discrete events per second and three continuous voices.
+- Soften FM depth, resonance, filter brightness, delay/reverb and default layer levels.
+- Snap discrete live events to a 125 ms musical grid for a more coherent rhythmic feel.
+- Keep pacing and sound polish as wrapper layers so they remain independently tunable.
+
 ### 10 — Composition / Motif Memory — **DONE**
 
 - Detect repeating four-event musical contours independently for each species.
