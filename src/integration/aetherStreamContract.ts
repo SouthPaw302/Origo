@@ -17,6 +17,8 @@ export interface OrigoAetherSourceManifest {
   eventCount: number;
   motifCount: number;
   guidedEventCount: number;
+  sectionCount: number;
+  sectionTypes: string[];
   preset: {
     id: string;
     name: string;
@@ -39,6 +41,7 @@ export interface OrigoAetherSourceManifest {
     motifLineage: boolean;
     musicalAnalysis: boolean;
     symbolicModelGuidance: boolean;
+    ecologicalSections: boolean;
     quantizedLaunch: boolean;
     resampleSource: boolean;
   };
@@ -53,6 +56,7 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
     (count, event) => count + (event.model?.guided ? 1 : 0),
     0
   );
+  const sections = session.sections ?? [];
 
   return {
     schema: 'libertas.aether.origo-source.v1',
@@ -66,6 +70,8 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
     eventCount: session.events.length,
     motifCount: session.motifs?.length ?? 0,
     guidedEventCount,
+    sectionCount: sections.length,
+    sectionTypes: sections.map((section) => section.type),
     preset: {
       id: session.presetId,
       name: session.presetName,
@@ -88,6 +94,7 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
       motifLineage: true,
       musicalAnalysis: true,
       symbolicModelGuidance: true,
+      ecologicalSections: true,
       quantizedLaunch: true,
       resampleSource: true,
     },
