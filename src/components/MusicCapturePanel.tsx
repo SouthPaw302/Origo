@@ -25,7 +25,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
         <div>
           <p className="text-[9px] uppercase tracking-[0.2em] text-[#777]">World Recorder</p>
           <p className="mt-1 text-xs font-sans font-medium text-white">Capture this ecosystem as a real track</p>
-          <p className="mt-1 text-[10px] font-sans leading-relaxed text-[#777]">Origo remembers the musical events so you can export the performance instead of screen-recording it.</p>
+          <p className="mt-1 text-[10px] font-sans leading-relaxed text-[#777]">Origo remembers the musical events and recurring motifs so the world can develop recognizable ideas instead of only producing isolated sounds.</p>
         </div>
         <div className={`flex items-center gap-1.5 border px-2 py-1 text-[8px] uppercase tracking-widest ${status.recording ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#333] text-[#666]'}`}>
           <span className={`h-1.5 w-1.5 rounded-full ${status.recording ? 'bg-[#ff3e00] animate-pulse' : 'bg-[#444]'}`} />
@@ -33,9 +33,10 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
         <RecorderStat value={status.eventCount} label="Events" accent="text-[#00ff41]" />
         <RecorderStat value={status.barsCaptured} label="Bars" accent="text-white" />
+        <RecorderStat value={status.motifCount} label="Motifs" accent="text-[#b283ff]" />
         <RecorderStat value={engine.activePreset.soundPreset.tempoBpm} label="BPM" accent="text-[#ff6538]" />
       </div>
 
@@ -68,7 +69,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
       </button>
       {showAdvanced && (
         <div className="mt-2 border border-[#202020] bg-[#0b0b0b] p-2.5">
-          <p className="font-sans text-[10px] leading-relaxed text-[#777]">For the LibertasDJ/Desktop pipeline. Desktop remains the authoritative musical clock; Origo provides deterministic source/session data.</p>
+          <p className="font-sans text-[10px] leading-relaxed text-[#777]">For the LibertasDJ/Desktop pipeline. Desktop remains the authoritative musical clock; Origo provides deterministic source/session data and motif lineage.</p>
           <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportAetherManifest()} className="mt-2 flex w-full items-center justify-center gap-1.5 border border-[#333] px-2 py-2 text-[8px] uppercase tracking-wider text-[#aaa] hover:border-[#ff3e00] hover:text-[#ff6538] disabled:opacity-30"><Link2 className="h-3 w-3" /> Export Aether Manifest</button>
         </div>
       )}
