@@ -36,6 +36,10 @@ class PhraseGuidance {
     return this.suggestion;
   }
 
+  public getRemainingEventCount() {
+    return this.remainingEvents;
+  }
+
   public shapePitch(proposedMidi: number): { midiNote: number; model?: ModelGuidanceRef } {
     if (!this.suggestion || this.remainingEvents <= 0 || this.suggestion.notes.length === 0) {
       return { midiNote: proposedMidi };
