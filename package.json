@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "prebuild": "node scripts/copy-spessa-worklet.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -17,6 +18,7 @@
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "spessasynth_lib": "^4.3.14",
     "vite": "^6.2.3",
     "express": "^4.21.2",
     "dotenv": "^17.2.3",
