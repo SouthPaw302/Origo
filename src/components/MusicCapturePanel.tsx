@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Download, FileAudio, FileJson, Radio, Square, Trash2 } from 'lucide-react';
+import { Download, FileAudio, FileJson, Link2, Radio, Square, Trash2 } from 'lucide-react';
 import { SimulationEngine } from '../simulation/engine';
 import { origoMusicSystem } from '../music/musicSystem';
 
 export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
   const [, refresh] = useState(0);
   const [rendering, setRendering] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => origoMusicSystem.subscribe(() => refresh((v) => v + 1)), []);
 
@@ -14,54 +15,71 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
 
   const exportWav = async () => {
     setRendering(true);
-    try {
-      await origoMusicSystem.exportWav();
-    } finally {
-      setRendering(false);
-    }
+    try { await origoMusicSystem.exportWav(); }
+    finally { setRendering(false); }
   };
 
   return (
-    <section className="mt-3 border border-[#222] bg-[#080808] p-3 font-mono">
+    <section className="border border-[#262626] bg-[#080808] p-3 font-mono">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[#777]">World Recorder</p>
-          <p className="mt-1 text-xs text-[#bbb]">Behavior → quantized events → real file</p>
+          <p className="text-[9px] uppercase tracking-[0.2em] text-[#777]">World Recorder</p>
+          <p className="mt-1 text-xs font-sans font-medium text-white">Capture this ecosystem as a real track</p>
+          <p className="mt-1 text-[10px] font-sans leading-relaxed text-[#777]">Origo remembers the musical events so you can export the performance instead of screen-recording it.</p>
         </div>
-        <div className={`px-2 py-1 text-[9px] uppercase tracking-widest border ${status.recording ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#333] text-[#666]'}`}>
-          {status.recording ? 'Recording' : 'Idle'}
+        <div className={`flex items-center gap-1.5 border px-2 py-1 text-[8px] uppercase tracking-widest ${status.recording ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#333] text-[#666]'}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${status.recording ? 'bg-[#ff3e00] animate-pulse' : 'bg-[#444]'}`} />
+          {status.recording ? 'Recording' : hasEvents ? 'Captured' : 'Ready'}
         </div>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <div className="border border-[#1f1f1f] p-2"><div className="text-[#00ff41] text-sm">{status.eventCount}</div><div className="text-[8px] uppercase text-[#555]">Events</div></div>
-        <div className="border border-[#1f1f1f] p-2"><div className="text-white text-sm">{status.barsCaptured}</div><div className="text-[8px] uppercase text-[#555]">Bars</div></div>
-        <div className="border border-[#1f1f1f] p-2"><div className="text-[#ff3e00] text-sm">{engine.activePreset.soundPreset.tempoBpm}</div><div className="text-[8px] uppercase text-[#555]">BPM</div></div>
+        <RecorderStat value={status.eventCount} label="Events" accent="text-[#00ff41]" />
+        <RecorderStat value={status.barsCaptured} label="Bars" accent="text-white" />
+        <RecorderStat value={engine.activePreset.soundPreset.tempoBpm} label="BPM" accent="text-[#ff6538]" />
       </div>
 
       <div className="mt-3 flex gap-2">
         {!status.recording ? (
-          <button onClick={() => origoMusicSystem.start(engine)} className="flex-1 border border-[#00ff41] text-[#00ff41] hover:bg-[#00ff41] hover:text-black px-2 py-2 text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5">
-            <Radio className="w-3 h-3" /> Capture World
+          <button onClick={() => origoMusicSystem.start(engine)} className="flex flex-1 items-center justify-center gap-1.5 border border-[#00ff41] bg-[#00ff41] px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider text-black transition hover:bg-[#62ff86]">
+            <Radio className="h-3.5 w-3.5" /> {hasEvents ? 'Record New Take' : 'Start Recording'}
           </button>
         ) : (
-          <button onClick={() => origoMusicSystem.stop()} className="flex-1 border border-[#ff3e00] text-[#ff3e00] hover:bg-[#ff3e00] hover:text-black px-2 py-2 text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5">
-            <Square className="w-3 h-3" /> Stop Capture
+          <button onClick={() => origoMusicSystem.stop()} className="flex flex-1 items-center justify-center gap-1.5 border border-[#ff3e00] bg-[#ff3e00]/10 px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider text-[#ff3e00] transition hover:bg-[#ff3e00] hover:text-black">
+            <Square className="h-3.5 w-3.5" /> Stop & Keep Take
           </button>
         )}
-        <button onClick={() => origoMusicSystem.clear()} className="border border-[#333] text-[#777] hover:text-white px-3 py-2" title="Clear captured session"><Trash2 className="w-3 h-3" /></button>
+        <button onClick={() => origoMusicSystem.clear()} disabled={!hasEvents && !status.recording} className="border border-[#333] px-3 py-2 text-[#777] transition hover:text-white disabled:opacity-30" title="Clear captured session"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <button disabled={!hasEvents || rendering} onClick={exportWav} className="disabled:opacity-30 border border-[#333] hover:border-[#00ff41] px-2 py-2 text-[9px] uppercase tracking-wider flex items-center justify-center gap-1"><FileAudio className="w-3 h-3" /> {rendering ? 'Rendering' : 'WAV'}</button>
-        <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportMidi()} className="disabled:opacity-30 border border-[#333] hover:border-[#00ff41] px-2 py-2 text-[9px] uppercase tracking-wider flex items-center justify-center gap-1"><Download className="w-3 h-3" /> MIDI</button>
-        <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportSessionJson()} className="disabled:opacity-30 border border-[#333] hover:border-[#00ff41] px-2 py-2 text-[9px] uppercase tracking-wider flex items-center justify-center gap-1"><FileJson className="w-3 h-3" /> Session</button>
-        <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportAetherManifest()} className="disabled:opacity-30 border border-[#333] hover:border-[#ff3e00] px-2 py-2 text-[9px] uppercase tracking-wider flex items-center justify-center gap-1"><FileJson className="w-3 h-3" /> Aether</button>
-      </div>
+      {hasEvents && !status.recording && (
+        <div className="mt-3 border-t border-[#222] pt-3">
+          <p className="mb-2 text-[8px] uppercase tracking-[0.18em] text-[#666]">Export this take</p>
+          <div className="grid grid-cols-3 gap-2">
+            <ExportButton disabled={rendering} onClick={exportWav} icon={<FileAudio className="h-3 w-3" />} label={rendering ? 'Rendering' : 'WAV'} primary />
+            <ExportButton onClick={() => origoMusicSystem.exportMidi()} icon={<Download className="h-3 w-3" />} label="MIDI" />
+            <ExportButton onClick={() => origoMusicSystem.exportSessionJson()} icon={<FileJson className="h-3 w-3" />} label="Session" />
+          </div>
+        </div>
+      )}
 
-      <p className="mt-3 text-[9px] leading-relaxed text-[#555]">
-        Aether export declares external clock authority: Libertas Desktop/AetherStream stays master while Origo supplies deterministic source material.
-      </p>
+      <button onClick={() => setShowAdvanced((value) => !value)} className="mt-3 flex w-full items-center justify-between border-t border-[#202020] pt-2 text-left text-[8px] uppercase tracking-[0.16em] text-[#555] hover:text-[#999]">
+        <span>Libertas / AetherStream</span><span>{showAdvanced ? '−' : '+'}</span>
+      </button>
+      {showAdvanced && (
+        <div className="mt-2 border border-[#202020] bg-[#0b0b0b] p-2.5">
+          <p className="font-sans text-[10px] leading-relaxed text-[#777]">For the LibertasDJ/Desktop pipeline. Desktop remains the authoritative musical clock; Origo provides deterministic source/session data.</p>
+          <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportAetherManifest()} className="mt-2 flex w-full items-center justify-center gap-1.5 border border-[#333] px-2 py-2 text-[8px] uppercase tracking-wider text-[#aaa] hover:border-[#ff3e00] hover:text-[#ff6538] disabled:opacity-30"><Link2 className="h-3 w-3" /> Export Aether Manifest</button>
+        </div>
+      )}
     </section>
   );
+}
+
+function RecorderStat({ value, label, accent }: { value: number; label: string; accent: string }) {
+  return <div className="border border-[#1f1f1f] bg-[#0b0b0b] p-2"><div className={`text-sm ${accent}`}>{value}</div><div className="text-[7px] uppercase tracking-widest text-[#555]">{label}</div></div>;
+}
+
+function ExportButton({ onClick, icon, label, disabled = false, primary = false }: { onClick: () => void; icon: React.ReactNode; label: string; disabled?: boolean; primary?: boolean }) {
+  return <button disabled={disabled} onClick={onClick} className={`flex items-center justify-center gap-1 border px-2 py-2 text-[8px] uppercase tracking-wider transition disabled:opacity-30 ${primary ? 'border-[#00ff41]/60 text-[#00ff41] hover:bg-[#00ff41] hover:text-black' : 'border-[#333] text-[#aaa] hover:border-[#00ff41] hover:text-[#00ff41]'}`}>{icon}{label}</button>;
 }
