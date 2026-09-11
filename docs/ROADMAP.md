@@ -42,7 +42,7 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Snap discrete live events to a 125 ms musical grid for a more coherent rhythmic feel.
 - Calibrate recorder timing from the actual world tick rate and selected BPM.
 
-### 9.8 — Readable Interactions — **IN VALIDATION**
+### 9.8 — Readable Interactions — **DONE**
 
 - Replace continuous contact harvesting with a harvest wind-up, discrete energy transfer and recovery/cooldown.
 - Replace Predator contact drain with a visible strike wind-up, discrete hit and recovery cycle.
