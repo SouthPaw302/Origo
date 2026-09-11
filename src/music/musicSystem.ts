@@ -1,5 +1,6 @@
 import { SimulationEngine } from '../simulation/engine';
 import { WORLD_PACING } from '../simulation/worldPacing';
+import { phraseGuidance } from '../models/phraseGuidance';
 import { buildAetherSourceManifest } from '../integration/aetherStreamContract';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicDirector } from './musicDirector';
@@ -52,6 +53,7 @@ export class OrigoMusicSystem {
     const preset = engine.activePreset;
     const tempo = preset.soundPreset.tempoBpm;
     this.clock = new OrigoMusicClock(tempo, recordingStepsPerBeat(engine, tempo));
+    // Reset per-take motif/event state but keep explicitly armed phrase guidance.
     this.director.reset();
     this.lastProcessedStep = -1;
     this.lastAnalysisEventCount = 0;
@@ -90,6 +92,7 @@ export class OrigoMusicSystem {
     this.lastAnalysisEventCount = 0;
     this.lastAnalysisBar = -1;
     this.director.reset();
+    phraseGuidance.clear();
     this.emit();
   }
 

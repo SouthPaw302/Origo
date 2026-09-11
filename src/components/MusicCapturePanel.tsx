@@ -4,6 +4,7 @@ import { SimulationEngine } from '../simulation/engine';
 import { origoMusicSystem } from '../music/musicSystem';
 import { InstrumentPanel } from './InstrumentPanel';
 import { MusicalAnalysisPanel } from './MusicalAnalysisPanel';
+import { PhraseModelPanel } from './PhraseModelPanel';
 
 export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
   const [, refresh] = useState(0);
@@ -53,7 +54,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
               <Square className="h-3.5 w-3.5" /> Stop & Keep Take
             </button>
           )}
-          <button onClick={() => origoMusicSystem.clear()} disabled={!hasEvents && !status.recording} className="border border-[#333] px-3 py-2 text-[#777] transition hover:text-white disabled:opacity-30" title="Clear captured session"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button onClick={() => origoMusicSystem.clear()} disabled={!hasEvents && !status.recording} className="border border-[#333] px-3 py-2 text-[#777] transition hover:text-white disabled:opacity-30" title="Clear captured session and armed phrase guidance"><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
 
         {hasEvents && !status.recording && (
@@ -72,14 +73,15 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
         </button>
         {showAdvanced && (
           <div className="mt-2 border border-[#202020] bg-[#0b0b0b] p-2.5">
-            <p className="font-sans text-[10px] leading-relaxed text-[#777]">For the LibertasDJ/Desktop pipeline. Desktop remains the authoritative musical clock; Origo provides deterministic source/session data and motif lineage.</p>
+            <p className="font-sans text-[10px] leading-relaxed text-[#777]">For the LibertasDJ/Desktop pipeline. Desktop remains the authoritative musical clock; Origo provides deterministic source/session data, motif lineage and optional symbolic-guidance metadata.</p>
             <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportAetherManifest()} className="mt-2 flex w-full items-center justify-center gap-1.5 border border-[#333] px-2 py-2 text-[8px] uppercase tracking-wider text-[#aaa] hover:border-[#ff3e00] hover:text-[#ff6538] disabled:opacity-30"><Link2 className="h-3 w-3" /> Export Aether Manifest</button>
           </div>
         )}
       </section>
 
-      <InstrumentPanel />
       <MusicalAnalysisPanel />
+      <PhraseModelPanel />
+      <InstrumentPanel />
     </div>
   );
 }

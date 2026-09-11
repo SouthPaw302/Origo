@@ -1,5 +1,6 @@
 import { SpeciesType } from '../types';
 import { SimulationEngine } from '../simulation/engine';
+import { phraseGuidance } from '../models/phraseGuidance';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicalEvent } from './types';
 import { OrigoMotifMemory } from './motifMemory';
@@ -29,6 +30,10 @@ function eventKind(species: SpeciesType, pulse: number, terraform: number, abili
   if (species === SpeciesType.Glider) return 'transition' as const;
   if (species === SpeciesType.Resonator) return 'note' as const;
   return 'texture' as const;
+}
+
+function canReceivePhraseGuidance(species: SpeciesType) {
+  return species === SpeciesType.Resonator || species === SpeciesType.Glider;
 }
 
 export class OrigoMusicDirector {
@@ -72,7 +77,10 @@ export class OrigoMusicDirector {
       );
 
       const position = clock.positionForStep(engine.stepCount);
-      const shaped = this.motifMemory.shapePitch(species, proposedMidi, position.bar);
+      const motifShaped = this.motifMemory.shapePitch(species, proposedMidi, position.bar);
+      const modelShaped = canReceivePhraseGuidance(species)
+        ? phraseGuidance.shapePitch(motifShaped.midiNote)
+        : { midiNote: motifShaped.midiNote };
       const harmonicField = engine.env.sampleHarmonicField(agent.x, agent.y);
       const terrain = engine.env.sampleTerrain(agent.x, agent.y);
       const acousticPressure = engine.env.sampleAcousticPressure(agent.x, agent.y);
@@ -85,7 +93,7 @@ export class OrigoMusicDirector {
         generation: agent.generation,
         step: engine.stepCount,
         position,
-        midiNote: shaped.midiNote,
+        midiNote: modelShaped.midiNote,
         velocity: clamp(0.25 + behavioralIntensity * 0.6 + energyNorm * 0.15, 0.05, 1),
         durationBeats: SPECIES_DURATION[species],
         pan: clamp(xNorm * 2 - 1, -1, 1),
@@ -93,7 +101,8 @@ export class OrigoMusicDirector {
         energy: energyNorm,
         xNorm,
         yNorm,
-        motif: shaped.motif,
+        motif: motifShaped.motif,
+        model: modelShaped.model,
         action: { thrust, steer, pulse, terraform, ability },
         environment: { harmonicField, terrain, acousticPressure },
       });
