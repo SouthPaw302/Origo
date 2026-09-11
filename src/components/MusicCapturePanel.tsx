@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Download, FileAudio, FileJson, Link2, Radio, Square, Trash2 } from 'lucide-react';
+import { Download, FileAudio, FileJson, Link2, Radio, Repeat2, Square, Trash2 } from 'lucide-react';
 import { SimulationEngine } from '../simulation/engine';
 import { origoMusicSystem } from '../music/musicSystem';
 import { InstrumentPanel } from './InstrumentPanel';
 import { MusicalAnalysisPanel } from './MusicalAnalysisPanel';
 import { PhraseModelPanel } from './PhraseModelPanel';
+import { SampleRackPanel } from './SampleRackPanel';
 
 export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
   const [, refresh] = useState(0);
   const [rendering, setRendering] = useState(false);
+  const [feedingBack, setFeedingBack] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => origoMusicSystem.subscribe(() => refresh((v) => v + 1)), []);
@@ -22,6 +24,12 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
     finally { setRendering(false); }
   };
 
+  const feedBack = async () => {
+    setFeedingBack(true);
+    try { await origoMusicSystem.feedTakeBackAsLoop(true); }
+    finally { setFeedingBack(false); }
+  };
+
   return (
     <div className="space-y-3">
       <section className="border border-[#262626] bg-[#080808] p-3 font-mono">
@@ -29,7 +37,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
           <div>
             <p className="text-[9px] uppercase tracking-[0.2em] text-[#777]">World Recorder</p>
             <p className="mt-1 text-xs font-sans font-medium text-white">Capture this ecosystem as a real track</p>
-            <p className="mt-1 text-[10px] font-sans leading-relaxed text-[#777]">Origo remembers the musical events and recurring motifs so the world can develop recognizable ideas instead of only producing isolated sounds.</p>
+            <p className="mt-1 text-[10px] font-sans leading-relaxed text-[#777]">Origo remembers musical events, ecological sections and recurring motifs so each pass can become material for the next one.</p>
           </div>
           <div className={`flex items-center gap-1.5 border px-2 py-1 text-[8px] uppercase tracking-widest ${status.recording ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#333] text-[#666]'}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${status.recording ? 'bg-[#ff3e00] animate-pulse' : 'bg-[#444]'}`} />
@@ -37,12 +45,17 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+        <div className="mt-3 grid grid-cols-5 gap-2 text-center">
           <RecorderStat value={status.eventCount} label="Events" accent="text-[#00ff41]" />
           <RecorderStat value={status.barsCaptured} label="Bars" accent="text-white" />
           <RecorderStat value={status.motifCount} label="Motifs" accent="text-[#b283ff]" />
+          <RecorderStat value={status.sectionCount ?? 0} label="Sections" accent="text-[#ffb24a]" />
           <RecorderStat value={engine.activePreset.soundPreset.tempoBpm} label="BPM" accent="text-[#ff6538]" />
         </div>
+
+        {status.currentSection && (
+          <div className="mt-2 border border-[#ffb24a]/25 bg-[#171006] px-2.5 py-2 text-[9px] uppercase tracking-wider text-[#ffb24a]">Ecology: {status.currentSection}</div>
+        )}
 
         <div className="mt-3 flex gap-2">
           {!status.recording ? (
@@ -59,6 +72,12 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
 
         {hasEvents && !status.recording && (
           <div className="mt-3 border-t border-[#222] pt-3">
+            <p className="mb-2 text-[8px] uppercase tracking-[0.18em] text-[#666]">Build from this take</p>
+            <button disabled={feedingBack} onClick={feedBack} className="mb-2 flex w-full items-center justify-center gap-1.5 border border-[#ffb24a]/70 bg-[#ffb24a]/5 px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider text-[#ffb24a] transition hover:bg-[#ffb24a] hover:text-black disabled:opacity-40">
+              <Repeat2 className="h-3.5 w-3.5" /> {feedingBack ? 'Rendering Return Loop…' : 'Feed Take Back In · Start Song Layer'}
+            </button>
+            <p className="mb-3 text-[9px] font-sans leading-relaxed text-[#666]">Renders this take into the Aether Return Loop. Leave it playing, then record a new ecosystem pass over it to grow the song layer by layer.</p>
+
             <p className="mb-2 text-[8px] uppercase tracking-[0.18em] text-[#666]">Export this take</p>
             <div className="grid grid-cols-3 gap-2">
               <ExportButton disabled={rendering} onClick={exportWav} icon={<FileAudio className="h-3 w-3" />} label={rendering ? 'Rendering' : 'WAV'} primary />
@@ -73,7 +92,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
         </button>
         {showAdvanced && (
           <div className="mt-2 border border-[#202020] bg-[#0b0b0b] p-2.5">
-            <p className="font-sans text-[10px] leading-relaxed text-[#777]">For the LibertasDJ/Desktop pipeline. Desktop remains the authoritative musical clock; Origo provides deterministic source/session data, motif lineage and optional symbolic-guidance metadata.</p>
+            <p className="font-sans text-[10px] leading-relaxed text-[#777]">Libertas Desktop remains the authoritative musical clock. Origo can send deterministic session/section data outward, while rendered stems or loops can return through the Sample Rack for another generative pass.</p>
             <button disabled={!hasEvents} onClick={() => origoMusicSystem.exportAetherManifest()} className="mt-2 flex w-full items-center justify-center gap-1.5 border border-[#333] px-2 py-2 text-[8px] uppercase tracking-wider text-[#aaa] hover:border-[#ff3e00] hover:text-[#ff6538] disabled:opacity-30"><Link2 className="h-3 w-3" /> Export Aether Manifest</button>
           </div>
         )}
@@ -81,6 +100,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
 
       <MusicalAnalysisPanel />
       <PhraseModelPanel />
+      <SampleRackPanel />
       <InstrumentPanel />
     </div>
   );
