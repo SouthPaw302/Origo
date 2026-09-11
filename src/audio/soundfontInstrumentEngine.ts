@@ -1,5 +1,6 @@
 import { WorkletSynthesizer } from 'spessasynth_lib';
 import { SpeciesType } from '../types';
+import { soundEngine } from './soundEngine';
 
 export type InstrumentMode = 'native' | 'hybrid' | 'instruments';
 
@@ -22,10 +23,10 @@ const SPECIES_CHANNEL: Record<SpeciesType, number> = {
 };
 
 const DEFAULT_PROGRAMS: Record<SpeciesType, number> = {
-  [SpeciesType.Resonator]: 11, // vibraphone-like role
-  [SpeciesType.Predator]: 38,  // synth bass role
-  [SpeciesType.Architect]: 48, // string ensemble role
-  [SpeciesType.Glider]: 73,    // flute-like lead role
+  [SpeciesType.Resonator]: 11,
+  [SpeciesType.Predator]: 38,
+  [SpeciesType.Architect]: 48,
+  [SpeciesType.Glider]: 73,
 };
 
 const SPECIES_DURATION_MS: Record<SpeciesType, number> = {
@@ -40,6 +41,7 @@ export class SoundFontInstrumentEngine {
   private outputGain: GainNode | null = null;
   private synth: WorkletSynthesizer | null = null;
   private listeners = new Set<() => void>();
+  private mixSyncTimer: number | null = null;
   private status: SoundFontStatus = {
     ready: false,
     loading: false,
@@ -75,7 +77,7 @@ export class SoundFontInstrumentEngine {
       await this.context.audioWorklet.addModule('/spessasynth_processor.min.js');
 
       this.outputGain = this.context.createGain();
-      this.applyGain();
+      this.syncNativeMix();
       this.outputGain.connect(this.context.destination);
 
       const synth = new WorkletSynthesizer(this.context, { oneOutput: true });
@@ -89,6 +91,7 @@ export class SoundFontInstrumentEngine {
       for (const species of Object.values(SpeciesType)) {
         synth.programChange(SPECIES_CHANNEL[species], this.status.programs[species]);
       }
+      this.startMixSync();
 
       this.setStatus({
         ready: true,
@@ -107,18 +110,6 @@ export class SoundFontInstrumentEngine {
 
   public setMode(mode: InstrumentMode) {
     this.setStatus({ mode });
-  }
-
-  public setMasterVolume(volume: number) {
-    this.status.masterVolume = Math.max(0, Math.min(1, volume));
-    this.applyGain();
-    this.emit();
-  }
-
-  public setMuted(muted: boolean) {
-    this.status.muted = muted;
-    this.applyGain();
-    this.emit();
   }
 
   public setProgram(species: SpeciesType, program: number) {
@@ -156,7 +147,23 @@ export class SoundFontInstrumentEngine {
     this.setStatus({ ready: false, loading: false, fileName: null, error: null, mode: 'native' });
   }
 
+  private startMixSync() {
+    if (this.mixSyncTimer !== null) window.clearInterval(this.mixSyncTimer);
+    this.mixSyncTimer = window.setInterval(() => this.syncNativeMix(), 80);
+  }
+
+  private syncNativeMix() {
+    const config = soundEngine.getConfig();
+    this.status.masterVolume = config.masterVolume;
+    this.status.muted = config.isMuted;
+    this.applyGain();
+  }
+
   private async disposeSynth() {
+    if (this.mixSyncTimer !== null) {
+      window.clearInterval(this.mixSyncTimer);
+      this.mixSyncTimer = null;
+    }
     if (this.synth) {
       try { this.synth.stopAll(true); } catch {}
       try { this.synth.destroy(); } catch {}
