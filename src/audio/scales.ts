@@ -63,6 +63,21 @@ export function midiToFreq(midi: number): number {
 }
 
 /**
+ * Quantize a continuous normalized value (0..1) to a MIDI note in the configured scale.
+ */
+export function quantizeToMidi(
+  normalizedVal: number,
+  rootMidi: number = 48,
+  scaleKey: string = 'lydian'
+): number {
+  const scale = SCALES[scaleKey] || SCALES.lydian;
+  const intervals = scale.intervals;
+  const clamped = Math.max(0, Math.min(0.999, normalizedVal));
+  const noteIndex = Math.floor(clamped * intervals.length);
+  return Math.max(0, Math.min(127, Math.round(rootMidi + intervals[noteIndex])));
+}
+
+/**
  * Quantize a continuous normalized value (0..1) to a scale frequency
  */
 export function quantizeToScale(
@@ -71,13 +86,6 @@ export function quantizeToScale(
   scaleKey: string = 'lydian',
   octaveSpread: number = 2
 ): number {
-  const scale = SCALES[scaleKey] || SCALES.lydian;
-  const intervals = scale.intervals;
-  
-  const clamped = Math.max(0, Math.min(0.999, normalizedVal));
-  const noteIndex = Math.floor(clamped * intervals.length);
-  const interval = intervals[noteIndex];
-  
-  const midiNote = rootMidi + interval;
-  return midiToFreq(midiNote);
+  void octaveSpread; // retained for API compatibility
+  return midiToFreq(quantizeToMidi(normalizedVal, rootMidi, scaleKey));
 }

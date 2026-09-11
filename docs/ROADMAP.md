@@ -31,20 +31,37 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Rate-limit reward/energy chimes.
 - Keep the governor independent from the DSP engine.
 
-### 10 — Composition / Motif Memory — **CURRENT**
+### 10 — Composition / Motif Memory — **DONE**
 
 - Detect repeating four-event musical contours independently for each species.
 - Use transposition-invariant pitch-interval and quantized-rhythm signatures.
 - Establish a motif only after it genuinely recurs.
 - Track motif occurrence, intensity, first/last bar and strength.
 - Annotate session events when motifs emerge or are deliberately recalled.
-- Recall each species' strongest motif on a staggered four-bar cycle so the world gains memory without becoming a loop.
-- Persist the strongest motifs in Origo session JSON.
+- Recall each species' strongest motif on a staggered four-bar cycle.
+- Persist motifs in Origo session JSON and Aether lineage metadata.
 - Surface live motif count in World Recorder.
-- Expose motif-lineage capability in the Libertas/AetherStream source manifest while retaining external-master clock authority.
 
-11. Add real instrument and SoundFont layer while retaining Origo synthesis.
-12. Add musical analysis and measurable musical fitness.
+### 11 — Real Instrument / SoundFont Layer — **DONE**
+
+- Add Apache-2.0 SpessaSynth browser runtime.
+- Support user-loaded SF2, SF3, SFOGG and DLS banks without uploading them to a server.
+- Keep Origo's native synthesis available at all times.
+- Add Native / Hybrid / Instruments listening modes.
+- Map each species to an independent MIDI program/channel with user-editable programs.
+- Route instrument events through the existing audio traffic governor.
+- Mirror Origo master mute/volume into the SoundFont layer.
+- Copy the AudioWorklet automatically for local development and Vercel builds.
+- Do not bundle a sample bank; timbre licensing remains with the bank chosen by the user.
+
+### 12 — Musical Analysis + Fitness — **CURRENT**
+
+- Measure structure from Origo's deterministic event stream before adding heavier audio-analysis models.
+- Track density, silence, rhythmic regularity, pitch spread, motif recurrence, species balance and section contrast.
+- Keep survival fitness separate from musical fitness.
+- Expose analysis as descriptive signals rather than one arbitrary 'good music' score.
+- Use musical fitness later as one pressure in multi-objective evolution.
+
 13. Add specialized embedded browser music models where they improve structure.
 14. Replace or repair environmental generative learning.
 15. Derive large-scale musical sections from ecological events.
