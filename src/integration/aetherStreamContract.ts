@@ -16,6 +16,7 @@ export interface OrigoAetherSourceManifest {
   durationBeats: number;
   eventCount: number;
   motifCount: number;
+  guidedEventCount: number;
   preset: {
     id: string;
     name: string;
@@ -37,6 +38,7 @@ export interface OrigoAetherSourceManifest {
     deterministicEventTimeline: boolean;
     motifLineage: boolean;
     musicalAnalysis: boolean;
+    symbolicModelGuidance: boolean;
     quantizedLaunch: boolean;
     resampleSource: boolean;
   };
@@ -45,6 +47,10 @@ export interface OrigoAetherSourceManifest {
 export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAetherSourceManifest {
   const durationBeats = session.events.reduce(
     (max, event) => Math.max(max, event.position.beat + event.durationBeats),
+    0
+  );
+  const guidedEventCount = session.events.reduce(
+    (count, event) => count + (event.model?.guided ? 1 : 0),
     0
   );
 
@@ -59,6 +65,7 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
     durationBeats,
     eventCount: session.events.length,
     motifCount: session.motifs?.length ?? 0,
+    guidedEventCount,
     preset: {
       id: session.presetId,
       name: session.presetName,
@@ -80,6 +87,7 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
       deterministicEventTimeline: true,
       motifLineage: true,
       musicalAnalysis: true,
+      symbolicModelGuidance: true,
       quantizedLaunch: true,
       resampleSource: true,
     },
