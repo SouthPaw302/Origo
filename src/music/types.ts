@@ -40,6 +40,33 @@ export interface OrigoMotifRecord {
   strength: number;
 }
 
+export interface MusicalFitnessVector {
+  space: number;
+  rhythmicIdentity: number;
+  motifStability: number;
+  speciesBalance: number;
+  dynamicContrast: number;
+  structuralContrast: number;
+}
+
+export interface OrigoMusicalAnalysis {
+  schema: 'origo.music-analysis.v1';
+  generatedAtEventCount: number;
+  bars: number;
+  eventDensity: number;
+  silenceRatio: number;
+  rhythmicRegularity: number;
+  pitchSpread: number;
+  pitchClassDiversity: number;
+  motifRecurrence: number;
+  motifRecall: number;
+  speciesBalance: number;
+  dynamicRange: number;
+  sectionContrast: number;
+  speciesEventShare: Record<SpeciesType, number>;
+  fitness: MusicalFitnessVector;
+}
+
 export interface OrigoMusicalEvent {
   id: string;
   type: OrigoMusicalEventType;
@@ -86,6 +113,7 @@ export interface OrigoMusicSession {
   beatsPerBar: number;
   events: OrigoMusicalEvent[];
   motifs?: OrigoMotifRecord[];
+  analysis?: OrigoMusicalAnalysis;
 }
 
 export interface MusicSystemStatus {

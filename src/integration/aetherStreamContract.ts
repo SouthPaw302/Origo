@@ -22,11 +22,21 @@ export interface OrigoAetherSourceManifest {
     scaleName: string;
     rootMidi: number;
   };
+  analysis?: {
+    eventDensity: number;
+    silenceRatio: number;
+    rhythmicRegularity: number;
+    motifRecurrence: number;
+    speciesBalance: number;
+    dynamicRange: number;
+    sectionContrast: number;
+  };
   capabilities: {
     renderedAudio: boolean;
     midi: boolean;
     deterministicEventTimeline: boolean;
     motifLineage: boolean;
+    musicalAnalysis: boolean;
     quantizedLaunch: boolean;
     resampleSource: boolean;
   };
@@ -55,11 +65,21 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
       scaleName: session.scaleName,
       rootMidi: session.rootMidi,
     },
+    analysis: session.analysis ? {
+      eventDensity: session.analysis.eventDensity,
+      silenceRatio: session.analysis.silenceRatio,
+      rhythmicRegularity: session.analysis.rhythmicRegularity,
+      motifRecurrence: session.analysis.motifRecurrence,
+      speciesBalance: session.analysis.speciesBalance,
+      dynamicRange: session.analysis.dynamicRange,
+      sectionContrast: session.analysis.sectionContrast,
+    } : undefined,
     capabilities: {
       renderedAudio: true,
       midi: true,
       deterministicEventTimeline: true,
       motifLineage: true,
+      musicalAnalysis: true,
       quantizedLaunch: true,
       resampleSource: true,
     },

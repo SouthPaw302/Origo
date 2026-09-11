@@ -54,15 +54,26 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Copy the AudioWorklet automatically for local development and Vercel builds.
 - Do not bundle a sample bank; timbre licensing remains with the bank chosen by the user.
 
-### 12 — Musical Analysis + Fitness — **CURRENT**
+### 12 — Musical Analysis + Fitness — **DONE**
 
-- Measure structure from Origo's deterministic event stream before adding heavier audio-analysis models.
-- Track density, silence, rhythmic regularity, pitch spread, motif recurrence, species balance and section contrast.
-- Keep survival fitness separate from musical fitness.
-- Expose analysis as descriptive signals rather than one arbitrary 'good music' score.
-- Use musical fitness later as one pressure in multi-objective evolution.
+- Analyze Origo's deterministic event stream without adding a heavyweight DSP dependency.
+- Track event density, musical space, rhythmic regularity, pitch spread and pitch-class diversity.
+- Track motif recurrence/recall, species balance, dynamic range and recent section contrast.
+- Keep survival fitness separate from a multi-axis musical fitness vector.
+- Avoid one arbitrary aggregate 'good music' score.
+- Persist Musical DNA in Origo session JSON and expose a compact analysis summary in Aether manifests.
+- Surface the signals in a user-facing Musical DNA panel.
 
-13. Add specialized embedded browser music models where they improve structure.
+### 13 — Optional Embedded Model Adapters — **CURRENT**
+
+- Keep models optional and outside the deterministic music/simulation core.
+- Define worker-friendly input/output contracts for phrase, groove and macro-structure helpers.
+- Never allow a model to own the musical clock or directly mutate authoritative simulation state.
+- Prefer symbolic/small models over full audio generation for the core browser experience.
+- Require capability checks, graceful fallback and explicit model loading.
+- Evaluate Magenta.js symbolic models behind an adapter despite its older published npm runtime; do not hard-wire it into core.
+- Keep larger audio generators such as Magenta RealTime or MusicGen as external/optional renderers, not baseline dependencies.
+
 14. Replace or repair environmental generative learning.
 15. Derive large-scale musical sections from ecological events.
 16. Add deterministic seeds, replay, branching and world lineage.
