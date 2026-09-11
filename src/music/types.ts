@@ -13,6 +13,15 @@ export type OrigoMusicalEventType =
   | 'drone'
   | 'transition';
 
+export type EcologicalSectionType =
+  | 'equilibrium'
+  | 'scarcity'
+  | 'predation'
+  | 'construction'
+  | 'migration'
+  | 'recovery'
+  | 'flux';
+
 export interface MusicalPosition {
   beat: number;
   bar: number;
@@ -39,6 +48,31 @@ export interface OrigoMotifRecord {
   firstBar: number;
   lastBar: number;
   strength: number;
+}
+
+export interface EcologicalSectionMetrics {
+  averageEnergy: number;
+  nodeEnergy: number;
+  speciesBalance: number;
+  predatorPressure: number;
+  constructionActivity: number;
+  mobility: number;
+}
+
+export interface EcologicalSectionBias {
+  density: number;
+  registerSemitones: number;
+  motifRecallPressure: number;
+}
+
+export interface OrigoEcologicalSection {
+  id: string;
+  type: EcologicalSectionType;
+  startBar: number;
+  endBar?: number;
+  cause: string;
+  metrics: EcologicalSectionMetrics;
+  bias: EcologicalSectionBias;
 }
 
 export interface MusicalFitnessVector {
@@ -115,6 +149,7 @@ export interface OrigoMusicSession {
   beatsPerBar: number;
   events: OrigoMusicalEvent[];
   motifs?: OrigoMotifRecord[];
+  sections?: OrigoEcologicalSection[];
   analysis?: OrigoMusicalAnalysis;
 }
 
@@ -124,4 +159,6 @@ export interface MusicSystemStatus {
   barsCaptured: number;
   lastEventAtStep: number;
   motifCount: number;
+  sectionCount?: number;
+  currentSection?: EcologicalSectionType;
 }
