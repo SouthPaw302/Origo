@@ -97,14 +97,23 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Preserve normal Origo operation when the model is unloaded or unavailable.
 - Keep larger audio generators such as Magenta RealTime or MusicGen outside the baseline browser core.
 
-### 14 — Environmental Generative Learning — **CURRENT**
+### 14 — Environmental Generative Learning — **DONE (adaptive curriculum)**
 
-- Replace the current cosmetic GAN behavior with measurable adaptive environment generation.
-- Keep generated environments in the same representation used for evaluation.
-- Prefer a transparent mutation/selection or regret-driven curriculum before adding a larger neural generator.
-- Preserve deterministic seeds so environments can later be replayed and compared.
+- Replace cosmetic adversarial weight updates with explicit environment mutation, evaluation and selection.
+- Evaluate candidates in the same terrain representation used by the world renderer/simulation.
+- Score challenge fit, terrain usability and novelty separately, then promote only candidates that beat the active environment by a measurable margin.
+- Adapt curriculum difficulty from agent absolute TD-error/regret: easier when agents struggle, harder when they master the current regime.
+- Use reproducible seeded candidate mutation around the active environment seed, plus an exploratory random candidate.
+- Keep the existing terrain synthesis mapping and preview contracts while stopping fake generator/discriminator training.
+- Relabel Evolution telemetry as Challenge Fit, Curriculum Fit, Curriculum Gap and Regret Gap so the GUI matches the real mechanism.
 
-15. Derive large-scale musical sections from ecological events.
+### 15 — Ecological Musical Sections — **CURRENT**
+
+- Detect multi-bar ecological states such as equilibrium, migration, predation pressure, construction growth, scarcity and recovery.
+- Convert sustained ecological changes into musical sections without scripting Verse/Chorus labels into the agents.
+- Persist section boundaries and causes in Origo session JSON and Aether metadata.
+- Use section state to influence density, register and motif-return pressure without taking timing authority away from the event system.
+
 16. Add deterministic seeds, replay, branching and world lineage.
 17. Add optional embedded composer / observer intelligence.
 
