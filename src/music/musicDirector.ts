@@ -119,6 +119,5 @@ export class OrigoMusicDirector {
   public reset() {
     this.lastQuantizedSlot.clear();
     this.motifMemory.reset();
-    phraseGuidance.clear();
   }
 }
