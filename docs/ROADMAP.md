@@ -14,7 +14,7 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 8. Record deterministic world/session timelines. — **Done**
 9. Export real music/session artifacts: WAV, MIDI, Origo JSON, Aether manifest. — **Done**
 
-### 9.5 — Usability + Sandbox QA — **CURRENT**
+### 9.5 — Usability + Sandbox QA — **DONE**
 
 - Replace developer-first navigation labels with Explore / Evolution / Sound / World.
 - Add a default Explore home instead of dropping users directly into neural-network internals.
@@ -25,6 +25,15 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Add first-run guidance and keyboard/focus accessibility.
 - Validate GUI changes in a local sandbox server before GitHub/Vercel deployment.
 - Keep the simulation canvas visually dominant.
+
+### 9.6 — Audio Traffic Control — **CURRENT**
+
+- Cap the number of continuous neural synth voices active at once.
+- Limit burst events globally so large populations cannot flood the mix.
+- Apply species-specific event cooldowns so one behavior cannot dominate the sound field.
+- Rate-limit reward/energy chimes.
+- Keep the governor outside the DSP engine so it can be tuned or removed independently.
+- Preserve **Calm Mix** as the immediate user-facing way to reduce intensity.
 
 10. Add composition / motif memory.
 11. Add real instrument and SoundFont layer while retaining Origo synthesis.
