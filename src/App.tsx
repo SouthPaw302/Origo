@@ -9,9 +9,11 @@ import { SimulationCanvas } from './components/SimulationCanvas';
 import { NeuralInspector } from './components/NeuralInspector';
 import { SelfPlayMetrics } from './components/SelfPlayMetrics';
 import { AudioControls } from './components/AudioControls';
+import { MusicCapturePanel } from './components/MusicCapturePanel';
 import { ControlPanel } from './components/ControlPanel';
 import { AgentDetailCard } from './components/AgentDetailCard';
 import { soundEngine } from './audio/soundEngine';
+import { origoMusicSystem } from './music/musicSystem';
 import { EnvironmentPreset, SpeciesType } from './types';
 import {
   Brain,
@@ -42,12 +44,14 @@ export default function App() {
   const [isAudioMuted, setIsAudioMuted] = useState(soundEngine.getConfig().isMuted);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Periodic metrics sync for UI state (every 100ms)
+  // Periodic metrics sync for UI state (every 100ms).
+  // Music capture observes the engine here and never owns simulation timing.
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(engine.getMetrics());
       setSelectedAgentId(engine.selectedAgentId);
       setIsAudioMuted(soundEngine.getConfig().isMuted);
+      origoMusicSystem.tick(engine);
     }, 100);
 
     return () => clearInterval(interval);
@@ -256,7 +260,12 @@ export default function App() {
                 onResampleLatent={() => engine.resampleLatentSpace()}
               />
             )}
-            {activeTab === 'audio' && <AudioControls />}
+            {activeTab === 'audio' && (
+              <div className="h-full overflow-y-auto pr-1">
+                <AudioControls />
+                <MusicCapturePanel engine={engine} />
+              </div>
+            )}
             {activeTab === 'controls' && (
               <ControlPanel engine={engine} onPresetChange={handlePresetSelect} />
             )}
