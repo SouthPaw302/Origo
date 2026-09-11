@@ -71,6 +71,11 @@ function randomLatent(dim: number, state: CurriculumState) {
   return Array.from({ length: dim }, () => Math.max(-3, Math.min(3, gaussian(state))));
 }
 
+function sameLatent(a: number[], b: number[]) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => Math.abs(value - b[index]) < 0.01);
+}
+
 interface ThumbnailStats {
   data: number[];
   complexity: number;
@@ -204,19 +209,20 @@ export function installEnvironmentCurriculum() {
     }
 
     const stats = this.candidateLatents.map((latent) => synthesizeThumbnail(this, latent));
-    const activeStats = stats[0];
+    const activeIndex = Math.max(0, this.candidateLatents.findIndex((latent) => sameLatent(latent, this.activeLatent)));
+    const activeStats = stats[activeIndex] || stats[0];
     const targetComplexity = clamp01(0.85 - clamp01(this.lastAgentRegret) * 0.55);
     let diversitySum = 0;
 
     const previews = this.candidateLatents.map((latent, index) => {
       const item = stats[index];
-      const diversity = index === 0 ? 0 : terrainDistance(item.data, activeStats.data);
-      diversitySum += diversity;
+      const diversity = index === activeIndex ? 0 : terrainDistance(item.data, activeStats.data);
+      if (index !== activeIndex) diversitySum += diversity;
       const challengeFit = clamp01(1 - Math.abs(item.complexity - targetComplexity) / 0.7);
       const usable = usability(item);
-      const noveltyFit = index === 0 ? 0.55 : clamp01(0.35 + diversity * 0.65);
+      const noveltyFit = index === activeIndex ? 0.55 : clamp01(0.35 + diversity * 0.65);
       const priority = clamp01(challengeFit * 0.5 + usable * 0.32 + noveltyFit * 0.18);
-      const isActive = index === 0 || latent.every((value, i) => Math.abs(value - this.activeLatent[i]) < 0.01);
+      const isActive = index === activeIndex;
 
       return {
         id: `curriculum_candidate_${index}`,
@@ -225,6 +231,7 @@ export function installEnvironmentCurriculum() {
         terrainThumbnail: item.data,
         cols: 20,
         rows: 20,
+        // Legacy field name retained for UI/type compatibility; value is challenge-fit, not discriminator output.
         discriminatorScore: round2(challengeFit),
         complexity: round2(item.complexity),
         priorityScore: round2(priority),
@@ -236,7 +243,7 @@ export function installEnvironmentCurriculum() {
     });
 
     state.poolDiversity = previews.length > 1 ? clamp01(diversitySum / (previews.length - 1)) : 0;
-    state.activeScore = previews[0]?.priorityScore ?? 0.5;
+    state.activeScore = previews.find((preview) => preview.isActive)?.priorityScore ?? 0.5;
     state.bestScore = previews.reduce((best, preview) => Math.max(best, preview.priorityScore), state.activeScore);
     this.generatedMapEntropy = round2(clamp01(activeStats.stdev * 2.4 + activeStats.gradient * 2.2));
     this.diversityScore = round2(state.poolDiversity);
@@ -260,13 +267,13 @@ export function installEnvironmentCurriculum() {
 
     if (this.epoch === 1 || this.epoch % SELECTION_INTERVAL === 0) {
       this.refreshCandidateLatents();
-      const active = this.cachedPreviews[0];
+      const active = this.cachedPreviews.find((item) => item.isActive) || this.cachedPreviews[0];
       const best = this.cachedPreviews.reduce((winner, candidate) =>
         candidate.priorityScore > winner.priorityScore ? candidate : winner,
         active
       );
 
-      if (best && active && best.id !== active.id && best.priorityScore >= active.priorityScore + MIN_REPLACEMENT_MARGIN) {
+      if (best && active && !best.isActive && best.priorityScore >= active.priorityScore + MIN_REPLACEMENT_MARGIN) {
         this.activeLatent = [...best.latentVector];
         this.updateLatentPreviews();
       }
@@ -279,6 +286,7 @@ export function installEnvironmentCurriculum() {
     const curriculumGap = clamp01(1 - bestPriority);
     const regretGap = clamp01(Math.abs(this.lastAgentRegret - state.targetRegret));
 
+    // Legacy metric fields remain for compatibility; they now carry measurable curriculum gaps.
     this.generatorLoss = curriculumGap;
     this.discriminatorLoss = regretGap;
     this.discriminatorRealScore = activePriority;
