@@ -20,6 +20,26 @@ export interface MusicalPosition {
   seconds: number;
 }
 
+export interface OrigoEventMotifRef {
+  id: string;
+  recalled: boolean;
+  strength: number;
+}
+
+export interface OrigoMotifRecord {
+  id: string;
+  species: SpeciesType;
+  signature: string;
+  pitchClasses: number[];
+  relativePitchClasses: number[];
+  rhythmUnits: number[];
+  occurrences: number;
+  averageIntensity: number;
+  firstBar: number;
+  lastBar: number;
+  strength: number;
+}
+
 export interface OrigoMusicalEvent {
   id: string;
   type: OrigoMusicalEventType;
@@ -36,6 +56,7 @@ export interface OrigoMusicalEvent {
   energy: number;
   xNorm: number;
   yNorm: number;
+  motif?: OrigoEventMotifRef;
   action: {
     thrust: number;
     steer: number;
@@ -64,6 +85,7 @@ export interface OrigoMusicSession {
   stepsPerBeat: number;
   beatsPerBar: number;
   events: OrigoMusicalEvent[];
+  motifs?: OrigoMotifRecord[];
 }
 
 export interface MusicSystemStatus {
@@ -71,4 +93,5 @@ export interface MusicSystemStatus {
   eventCount: number;
   barsCaptured: number;
   lastEventAtStep: number;
+  motifCount: number;
 }
