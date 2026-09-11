@@ -3,6 +3,7 @@ import { Download, FileAudio, FileJson, Link2, Radio, Square, Trash2 } from 'luc
 import { SimulationEngine } from '../simulation/engine';
 import { origoMusicSystem } from '../music/musicSystem';
 import { InstrumentPanel } from './InstrumentPanel';
+import { MusicalAnalysisPanel } from './MusicalAnalysisPanel';
 
 export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
   const [, refresh] = useState(0);
@@ -78,6 +79,7 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
       </section>
 
       <InstrumentPanel />
+      <MusicalAnalysisPanel />
     </div>
   );
 }
