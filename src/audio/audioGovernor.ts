@@ -1,5 +1,7 @@
 import { SpeciesType, SynthModulationParams } from '../types';
+import { quantizeToMidi } from './scales';
 import { soundEngine } from './soundEngine';
+import { soundFontInstrumentEngine } from './soundfontInstrumentEngine';
 
 export interface AudioTrafficConfig {
   maxEventsPerSecond: number;
@@ -96,12 +98,22 @@ export function installAudioGovernor() {
   const originalRelease = soundEngine.releaseAgentSynth.bind(soundEngine);
 
   soundEngine.triggerAgentSound = (...args: Parameters<typeof originalAgentSound>) => {
-    const species = args[0];
+    const [species, , normalizedPitch, intensity = 0.5] = args;
     if (!limiter.allowAgentEvent(species, performance.now())) return;
-    originalAgentSound(...args);
+
+    if (soundFontInstrumentEngine.shouldPlayInstrument()) {
+      const config = soundEngine.getConfig();
+      const midi = quantizeToMidi(normalizedPitch, config.rootMidi, config.scaleKey);
+      soundFontInstrumentEngine.playSpeciesNote(species, midi, intensity);
+    }
+
+    if (soundFontInstrumentEngine.shouldPlayNative()) {
+      originalAgentSound(...args);
+    }
   };
 
   soundEngine.updateAgentContinuousSynth = (params: SynthModulationParams) => {
+    if (!soundFontInstrumentEngine.shouldPlayNative()) return;
     if (!limiter.allowContinuous(params, performance.now())) return;
     originalContinuous(params);
   };
