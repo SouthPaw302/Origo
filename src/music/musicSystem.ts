@@ -1,6 +1,7 @@
 import { SimulationEngine } from '../simulation/engine';
 import { WORLD_PACING } from '../simulation/worldPacing';
 import { phraseGuidance } from '../models/phraseGuidance';
+import { sampleInstrumentEngine } from '../audio/sampleInstrumentEngine';
 import { buildAetherSourceManifest } from '../integration/aetherStreamContract';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicDirector } from './musicDirector';
@@ -54,6 +55,7 @@ export class OrigoMusicSystem {
   public start(engine: SimulationEngine) {
     const preset = engine.activePreset;
     const tempo = preset.soundPreset.tempoBpm;
+    sampleInstrumentEngine.setTempo(tempo);
     this.clock = new OrigoMusicClock(tempo, recordingStepsPerBeat(engine, tempo));
     this.director.reset();
     this.sectionTracker.reset();
@@ -182,6 +184,26 @@ export class OrigoMusicSystem {
     if (!this.session || this.session.events.length === 0) return;
     const wav = await renderSessionToWav(this.session);
     downloadBlob(wav, `${safeName(this.session.presetName)}-${this.session.id}.wav`);
+  }
+
+  /**
+   * Song scaffold: render the current take, load it as the Aether return loop,
+   * and optionally start it immediately so a new ecosystem take can overdub it.
+   */
+  public async feedTakeBackAsLoop(autoplay = true) {
+    if (!this.session || this.session.events.length === 0) return false;
+    this.refreshAnalysis(true);
+    const wav = await renderSessionToWav(this.session);
+    const bars = Math.max(1, this.getStatus().barsCaptured || 1);
+    await sampleInstrumentEngine.loadAetherLoopBlob(
+      wav,
+      `${safeName(this.session.presetName)}-${this.session.id}-aether-return.wav`,
+      this.session.tempoBpm,
+      bars
+    );
+    sampleInstrumentEngine.setTempo(this.session.tempoBpm);
+    if (autoplay) sampleInstrumentEngine.startAetherLoop();
+    return true;
   }
 
   private refreshAnalysis(force: boolean) {
