@@ -42,9 +42,26 @@ export interface OrigoAetherSourceManifest {
     musicalAnalysis: boolean;
     symbolicModelGuidance: boolean;
     ecologicalSections: boolean;
+    recordedSamplePlayback: boolean;
+    acceptsRenderedReturnLoop: boolean;
+    recursiveSongLayering: boolean;
     quantizedLaunch: boolean;
     resampleSource: boolean;
   };
+}
+
+/**
+ * Future AetherStream/Desktop implementations can deliver audio using this metadata
+ * and hand the decoded bytes/blob to SampleInstrumentEngine.loadAetherLoopBlob().
+ */
+export interface OrigoAetherReturnLoopDescriptor {
+  schema: 'libertas.aether.origo-return-loop.v1';
+  sourceSessionId: string;
+  label: string;
+  tempoBpm: number;
+  bars: number;
+  audioFormat: 'wav' | 'mp3' | 'ogg' | 'flac' | 'other';
+  launch: 'immediate' | 'next-bar' | 'next-phrase';
 }
 
 export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAetherSourceManifest {
@@ -95,6 +112,9 @@ export function buildAetherSourceManifest(session: OrigoMusicSession): OrigoAeth
       musicalAnalysis: true,
       symbolicModelGuidance: true,
       ecologicalSections: true,
+      recordedSamplePlayback: true,
+      acceptsRenderedReturnLoop: true,
+      recursiveSongLayering: true,
       quantizedLaunch: true,
       resampleSource: true,
     },
