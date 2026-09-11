@@ -1,8 +1,6 @@
 import { SpeciesType } from '../types';
 import { soundEngine } from './soundEngine';
 
-export type SampleSlotKind = 'one-shot' | 'loop';
-
 export interface SampleSlotStatus {
   ready: boolean;
   fileName: string | null;
@@ -16,6 +14,7 @@ export interface AetherLoopStatus {
   sourceBpm: number;
   bars: number;
   playing: boolean;
+  armed: boolean;
   gain: number;
 }
 
@@ -58,6 +57,7 @@ export class SampleInstrumentEngine {
     sourceBpm: 100,
     bars: 4,
     playing: false,
+    armed: false,
     gain: 0.42,
     buffer: null as AudioBuffer | null,
   };
@@ -83,6 +83,7 @@ export class SampleInstrumentEngine {
         sourceBpm: this.aetherLoop.sourceBpm,
         bars: this.aetherLoop.bars,
         playing: this.aetherLoop.playing,
+        armed: this.aetherLoop.armed,
         gain: this.aetherLoop.gain,
       },
     };
@@ -160,6 +161,7 @@ export class SampleInstrumentEngine {
     this.stopAetherLoop();
     this.aetherLoop.buffer = await this.decodeFile(file);
     this.aetherLoop.ready = true;
+    this.aetherLoop.armed = false;
     this.aetherLoop.fileName = file.name;
     this.aetherLoop.sourceBpm = clamp(sourceBpm, 30, 300);
     this.aetherLoop.bars = Math.max(1, Math.min(32, Math.round(bars)));
@@ -172,10 +174,19 @@ export class SampleInstrumentEngine {
     const context = this.ensureContext();
     this.aetherLoop.buffer = await context.decodeAudioData(await blob.arrayBuffer());
     this.aetherLoop.ready = true;
+    this.aetherLoop.armed = false;
     this.aetherLoop.fileName = label;
     this.aetherLoop.sourceBpm = clamp(sourceBpm, 30, 300);
     this.aetherLoop.bars = Math.max(1, Math.min(32, Math.round(bars)));
     this.emit();
+  }
+
+  public armAetherLoopForNextTake() {
+    if (!this.aetherLoop.ready || !this.aetherLoop.buffer) return false;
+    this.stopAetherLoop();
+    this.aetherLoop.armed = true;
+    this.emit();
+    return true;
   }
 
   public setAetherLoopGain(gain: number) {
@@ -183,8 +194,9 @@ export class SampleInstrumentEngine {
     this.emit();
   }
 
+  /** Starts exactly when called; OrigoMusicSystem calls this at the new-take bar-zero boundary when armed. */
   public startAetherLoop() {
-    if (!this.enabled || !this.aetherLoop.buffer) return;
+    if (!this.enabled || !this.aetherLoop.buffer) return false;
     this.stopAetherLoop();
     const context = this.ensureContext();
     const source = context.createBufferSource();
@@ -196,9 +208,11 @@ export class SampleInstrumentEngine {
     gain.gain.value = (native.isMuted ? 0 : native.masterVolume) * this.aetherLoop.gain;
     source.connect(gain);
     gain.connect(this.ensureMaster());
+    if (context.state === 'suspended') void context.resume();
     source.start();
     this.loopSource = source;
     this.aetherLoop.playing = true;
+    this.aetherLoop.armed = false;
     source.onended = () => {
       if (this.loopSource === source) {
         this.loopSource = null;
@@ -207,6 +221,7 @@ export class SampleInstrumentEngine {
       }
     };
     this.emit();
+    return true;
   }
 
   public stopAetherLoop() {
@@ -225,6 +240,7 @@ export class SampleInstrumentEngine {
     this.stopAetherLoop();
     this.aetherLoop.buffer = null;
     this.aetherLoop.ready = false;
+    this.aetherLoop.armed = false;
     this.aetherLoop.fileName = null;
     this.emit();
   }
