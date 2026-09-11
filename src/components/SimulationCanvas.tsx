@@ -7,6 +7,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { SimulationEngine } from '../simulation/engine';
 import { SpeciesType } from '../types';
 import { SPECIES_CONFIGS } from '../simulation/agent';
+import { getAgentInteractionCue, InteractionPhase } from '../simulation/interactionPacing';
 import { Crosshair, Waves, Sparkles, Mountain, Volume2 } from 'lucide-react';
 
 interface SimulationCanvasProps {
@@ -16,6 +17,15 @@ interface SimulationCanvasProps {
 }
 
 export type CanvasTool = 'inspect' | 'terraform_up' | 'terraform_down' | 'pulse' | 'crystal';
+
+const INTERACTION_COLORS: Record<InteractionPhase, string> = {
+  idle: '#666666',
+  harvesting: '#22d3ee',
+  striking: '#fb7185',
+  building: '#fbbf24',
+  boosting: '#c084fc',
+  recovering: '#737373',
+};
 
 export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
   engine,
@@ -98,17 +108,14 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
           const px = c * gridResolution;
           const py = r * gridResolution;
 
-          // Color calculation: sharp contrast obsidian grid with phosphor green / hyper orange accents
           let rVal = 5 + terrain * 12;
           let gVal = 5 + terrain * 16;
           let bVal = 8 + terrain * 20;
 
           if (harmonic > 0.05) {
-            // Positive harmonic resonance (phosphor green shimmer #00ff41)
             gVal += harmonic * 140;
             bVal += harmonic * 40;
           } else if (harmonic < -0.05) {
-            // Negative harmonic resonance / predator territory (hyper orange/vermilion #ff3e00)
             rVal += Math.abs(harmonic) * 160;
             gVal += Math.abs(harmonic) * 30;
           }
@@ -116,7 +123,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
           ctx.fillStyle = `rgb(${Math.min(255, Math.floor(rVal))}, ${Math.min(255, Math.floor(gVal))}, ${Math.min(255, Math.floor(bVal))})`;
           ctx.fillRect(px, py, gridResolution, gridResolution);
 
-          // Fine grid markers
           if (c % 3 === 0 && r % 3 === 0) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
             ctx.fillRect(px + gridResolution / 2, py + gridResolution / 2, 1, 1);
@@ -133,7 +139,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ctx.globalAlpha = Math.min(1.0, wave.intensity * 0.75);
         ctx.stroke();
 
-        // Secondary subtle outer ring
         ctx.beginPath();
         ctx.arc(wave.x, wave.y, Math.max(0, wave.radius - 6), 0, Math.PI * 2);
         ctx.strokeStyle = '#ffffff';
@@ -157,7 +162,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         const pulse = Math.sin(node.pulsePhase) * 2;
         const currentR = node.radius + pulse;
 
-        // Outer glow
         const gradient = ctx.createRadialGradient(node.x, node.y, 2, node.x, node.y, currentR * 2.2);
         gradient.addColorStop(0, `hsla(${node.hue}, 95%, 70%, 0.8)`);
         gradient.addColorStop(0.5, `hsla(${node.hue}, 85%, 55%, 0.3)`);
@@ -168,7 +172,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ctx.arc(node.x, node.y, currentR * 2.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Core crystal body
         ctx.fillStyle = `hsl(${node.hue}, 100%, 75%)`;
         ctx.beginPath();
         ctx.arc(node.x, node.y, currentR, 0, Math.PI * 2);
@@ -183,8 +186,8 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       for (const agent of engine.agents) {
         const isSelected = agent.id === selectedAgentId;
         const cfg = agent.config;
+        const interaction = getAgentInteractionCue(agent);
 
-        // Render Motion Trail
         if (agent.trail.length > 1) {
           ctx.beginPath();
           ctx.moveTo(agent.trail[0].x, agent.trail[0].y);
@@ -192,13 +195,12 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
             ctx.lineTo(agent.trail[i].x, agent.trail[i].y);
           }
           ctx.strokeStyle = cfg.color;
-          ctx.globalAlpha = 0.35;
-          ctx.lineWidth = 2.5;
+          ctx.globalAlpha = interaction.bursting ? 0.65 : 0.35;
+          ctx.lineWidth = interaction.bursting ? 4 : 2.5;
           ctx.stroke();
           ctx.globalAlpha = 1.0;
         }
 
-        // Render Sensory Raycasts for Selected Agent
         if (isSelected) {
           ctx.lineWidth = 1.0;
           const rayAngles = [-1.57, -0.78, -0.26, 0.26, 0.78, 1.57];
@@ -219,14 +221,12 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
             ctx.setLineDash([]);
           });
 
-          // Reticle around selected agent
           ctx.beginPath();
           ctx.arc(agent.x, agent.y, agent.radius * 2.8, 0, Math.PI * 2);
           ctx.strokeStyle = '#38bdf8';
           ctx.lineWidth = 1.5;
           ctx.stroke();
 
-          // Reticle tick marks
           for (let a = 0; a < 4; a++) {
             const rot = (a * Math.PI) / 2 + performance.now() * 0.002;
             const tx1 = agent.x + Math.cos(rot) * (agent.radius * 3.2);
@@ -241,16 +241,51 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
           }
         }
 
-        // Agent Body (Directional arrow / triangle craft)
+        // Interaction wind-up/recovery ring. This turns contact spam into readable actions.
+        if (interaction.phase !== 'idle') {
+          const cueColor = INTERACTION_COLORS[interaction.phase];
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(
+            agent.x,
+            agent.y,
+            agent.radius * 2.05,
+            -Math.PI / 2,
+            -Math.PI / 2 + Math.PI * 2 * Math.max(0.06, interaction.progress)
+          );
+          ctx.strokeStyle = cueColor;
+          ctx.globalAlpha = interaction.phase === 'recovering' ? 0.45 : 0.92;
+          ctx.lineWidth = interaction.bursting ? 3.2 : 2.1;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          if (isSelected && interaction.label) {
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = cueColor;
+            ctx.fillText(interaction.label, agent.x, agent.y - agent.radius * 2.7);
+          }
+          ctx.restore();
+        }
+
+        if (interaction.bursting) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(agent.x, agent.y, agent.radius * 2.6, 0, Math.PI * 2);
+          ctx.strokeStyle = cfg.secondaryColor;
+          ctx.globalAlpha = 0.38;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.restore();
+        }
+
         ctx.save();
         ctx.translate(agent.x, agent.y);
         ctx.rotate(agent.angle);
 
-        // Species Glow
         ctx.shadowColor = cfg.color;
-        ctx.shadowBlur = isSelected ? 18 : 8;
+        ctx.shadowBlur = interaction.bursting ? 22 : isSelected ? 18 : 8;
 
-        // Energy Bar Arc
         const energyRatio = agent.energy / agent.maxEnergy;
         ctx.beginPath();
         ctx.arc(0, 0, agent.radius + 3, -Math.PI * 0.6, -Math.PI * 0.6 + Math.PI * 1.2 * energyRatio);
@@ -258,11 +293,10 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ctx.lineWidth = 1.8;
         ctx.stroke();
 
-        // Main craft shape
         ctx.beginPath();
-        ctx.moveTo(agent.radius * 1.4, 0); // Nose tip
+        ctx.moveTo(agent.radius * 1.4, 0);
         ctx.lineTo(-agent.radius * 0.9, -agent.radius * 0.85);
-        ctx.lineTo(-agent.radius * 0.4, 0); // Engine indent
+        ctx.lineTo(-agent.radius * 0.4, 0);
         ctx.lineTo(-agent.radius * 0.9, agent.radius * 0.85);
         ctx.closePath();
 
@@ -272,13 +306,13 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ctx.lineWidth = 1.2;
         ctx.stroke();
 
-        // Engine Thruster Flame if accelerating
-        if (agent.lastActionOutputs[0] > 0.2) {
+        if (interaction.bursting || agent.lastActionOutputs[0] > 0.2) {
+          const flameScale = interaction.bursting ? 2.1 : 1.2 + Math.random() * 0.6;
           ctx.beginPath();
           ctx.moveTo(-agent.radius * 0.4, -agent.radius * 0.3);
-          ctx.lineTo(-agent.radius * (1.2 + Math.random() * 0.6), 0);
+          ctx.lineTo(-agent.radius * flameScale, 0);
           ctx.lineTo(-agent.radius * 0.4, agent.radius * 0.3);
-          ctx.fillStyle = '#f59e0b';
+          ctx.fillStyle = interaction.bursting ? '#c084fc' : '#f59e0b';
           ctx.fill();
         }
 
@@ -314,7 +348,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [engine, selectedAgentId, activeTool, mousePos]);
 
-  // Mouse Interaction Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -349,7 +382,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
 
   const applyToolAction = (x: number, y: number) => {
     if (activeTool === 'inspect') {
-      // Find nearest agent within click radius
       let nearestAgent: string | null = null;
       let minDist = 35;
 
@@ -384,7 +416,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       ref={containerRef}
       className="relative w-full h-full min-h-[420px] bg-[#050505] overflow-hidden flex flex-col items-center justify-center cursor-crosshair select-none"
     >
-      {/* Background Subtle Watermark Text */}
       <div className="absolute bottom-6 left-6 pointer-events-none select-none z-0">
         <span className="font-display text-7xl md:text-9xl font-black italic tracking-tighter text-white opacity-[0.03] uppercase">
           SIMULATION
@@ -401,7 +432,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         className="w-full h-full block relative z-10"
       />
 
-      {/* Live Environment Render Status Pill */}
       <div
         id="canvas-live-badge"
         className="absolute top-4 left-4 z-20 bg-black/90 px-3 py-1 border border-[#00ff41] text-[10px] text-[#00ff41] uppercase tracking-[0.2em] font-mono font-bold shadow-lg"
@@ -410,7 +440,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         Live Environment Render
       </div>
 
-      {/* Floating Interactive Tool Palette */}
       <div
         id="canvas-tools-bar"
         className="absolute top-14 left-4 z-20 flex flex-wrap items-center gap-1 p-1 bg-[#0a0a0a]/95 border border-[#222] shadow-2xl backdrop-blur-sm"
@@ -488,7 +517,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         </button>
       </div>
 
-      {/* Floating Canvas Species Legend */}
       <div
         id="canvas-legend"
         className="absolute bottom-4 left-4 z-20 flex flex-wrap items-center gap-3 px-3 py-1.5 bg-[#0a0a0a]/90 border border-[#222] text-[10px] font-mono uppercase tracking-wider"
@@ -504,7 +532,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ))}
       </div>
 
-      {/* Live Audio & Wave Indicator */}
       <div
         id="canvas-audio-status"
         className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3 py-1 bg-black/80 border border-[#222] text-[10px] font-mono uppercase tracking-widest text-[#00ff41]"
