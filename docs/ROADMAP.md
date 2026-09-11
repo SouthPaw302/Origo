@@ -107,12 +107,19 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Keep the existing terrain synthesis mapping and preview contracts while stopping fake generator/discriminator training.
 - Relabel Evolution telemetry as Challenge Fit, Curriculum Fit, Curriculum Gap and Regret Gap so the GUI matches the real mechanism.
 
-### 15 — Ecological Musical Sections — **CURRENT**
+### 15 — Ecological Musical Sections + Song Scaffolding — **CURRENT**
 
 - Detect multi-bar ecological states such as equilibrium, migration, predation pressure, construction growth, scarcity and recovery.
 - Convert sustained ecological changes into musical sections without scripting Verse/Chorus labels into the agents.
 - Persist section boundaries and causes in Origo session JSON and Aether metadata.
 - Use section state to influence density, register and motif-return pressure without taking timing authority away from the event system.
+- Add a recorded Sample Rack for real WAV/MP3/OGG/M4A/AAC/FLAC instrument one-shots mapped to species roles.
+- Pitch-shift recorded samples from user-editable root notes while retaining ecosystem event timing.
+- Keep recorded samples, SoundFonts and native synthesis as independent layers behind the same audio traffic governor.
+- Add an Aether Return Loop lane that accepts rendered audio plus source BPM/bar metadata.
+- Let a completed Origo take render directly into the Return Loop so Take N can become the musical bed for Take N+1.
+- Declare Aether capabilities for recorded samples, return loops and recursive song layering while Libertas remains external clock master.
+- Next: curate a small lazy-loaded CC0 starter bank, preferably from VSCO 2 Community Edition, then add multisample zones and bar-quantized return-loop launch.
 
 16. Add deterministic seeds, replay, branching and world lineage.
 17. Add optional embedded composer / observer intelligence.
