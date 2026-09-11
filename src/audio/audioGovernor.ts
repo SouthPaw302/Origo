@@ -97,6 +97,14 @@ export class AudioTrafficLimiter {
 const limiter = new AudioTrafficLimiter();
 let installed = false;
 
+type AgentSoundTrigger = (
+  species: SpeciesType,
+  normalizedX: number,
+  normalizedPitch: number,
+  intensity?: number,
+  tdError?: number
+) => void;
+
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
@@ -112,13 +120,18 @@ export function installAudioGovernor() {
   soundEngine.setDelayMix(0.1);
   soundEngine.setFilterCutoff(3600);
 
-  const originalAgentSound = soundEngine.triggerAgentSound.bind(soundEngine);
+  const originalAgentSound = soundEngine.triggerAgentSound.bind(soundEngine) as AgentSoundTrigger;
   const originalContinuous = soundEngine.updateAgentContinuousSynth.bind(soundEngine);
   const originalChime = soundEngine.triggerChime.bind(soundEngine);
   const originalRelease = soundEngine.releaseAgentSynth.bind(soundEngine);
 
-  soundEngine.triggerAgentSound = (...args: Parameters<typeof originalAgentSound>) => {
-    const [species, normalizedX, normalizedPitch, intensity = 0.5, tdError = 0] = args;
+  const governedAgentSound: AgentSoundTrigger = (
+    species,
+    normalizedX,
+    normalizedPitch,
+    intensity = 0.5,
+    tdError = 0
+  ) => {
     const now = performance.now();
     if (!limiter.allowAgentEvent(species, now)) return;
 
@@ -144,6 +157,8 @@ export function installAudioGovernor() {
       }
     }, delay);
   };
+
+  soundEngine.triggerAgentSound = governedAgentSound;
 
   soundEngine.updateAgentContinuousSynth = (params: SynthModulationParams) => {
     if (!soundFontInstrumentEngine.shouldPlayNative()) return;
