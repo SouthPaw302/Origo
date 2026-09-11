@@ -3,6 +3,7 @@
  * Kept independent from the renderer so sessions can cross into Libertas/AetherStream later.
  */
 import { SpeciesType } from '../types';
+import type { ModelGuidanceRef } from '../models/types';
 
 export type OrigoMusicalEventType =
   | 'note'
@@ -84,6 +85,7 @@ export interface OrigoMusicalEvent {
   xNorm: number;
   yNorm: number;
   motif?: OrigoEventMotifRef;
+  model?: ModelGuidanceRef;
   action: {
     thrust: number;
     steer: number;
