@@ -2,6 +2,7 @@ import { SimulationEngine } from '../simulation/engine';
 import { buildAetherSourceManifest } from '../integration/aetherStreamContract';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicDirector } from './musicDirector';
+import { analyzeMusicSession } from './musicalAnalysis';
 import { sessionToMidi } from './midiExporter';
 import { renderSessionToWav } from './wavRenderer';
 import { MusicSystemStatus, OrigoMusicSession } from './types';
@@ -27,6 +28,8 @@ export class OrigoMusicSystem {
   private session: OrigoMusicSession | null = null;
   private recording = false;
   private lastProcessedStep = -1;
+  private lastAnalysisEventCount = 0;
+  private lastAnalysisBar = -1;
   private listeners = new Set<() => void>();
 
   public subscribe(listener: () => void) {
@@ -44,6 +47,8 @@ export class OrigoMusicSystem {
     this.clock = new OrigoMusicClock(tempo);
     this.director.reset();
     this.lastProcessedStep = -1;
+    this.lastAnalysisEventCount = 0;
+    this.lastAnalysisBar = -1;
     this.session = {
       schema: 'origo.music-session.v1',
       id: `origo_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
@@ -65,6 +70,7 @@ export class OrigoMusicSystem {
 
   public stop() {
     if (this.session && !this.session.stoppedAt) this.session.stoppedAt = new Date().toISOString();
+    this.refreshAnalysis(true);
     this.recording = false;
     this.emit();
   }
@@ -74,6 +80,8 @@ export class OrigoMusicSystem {
     this.session = null;
     this.clock = null;
     this.lastProcessedStep = -1;
+    this.lastAnalysisEventCount = 0;
+    this.lastAnalysisBar = -1;
     this.director.reset();
     this.emit();
   }
@@ -86,12 +94,17 @@ export class OrigoMusicSystem {
     if (events.length) {
       this.session.events.push(...events);
       this.session.motifs = this.director.getMotifs();
+      this.refreshAnalysis(false);
       this.emit();
     }
   }
 
   public getSession() {
     return this.session;
+  }
+
+  public getAnalysis() {
+    return this.session?.analysis ?? null;
   }
 
   public getStatus(): MusicSystemStatus {
@@ -108,12 +121,14 @@ export class OrigoMusicSystem {
 
   public exportSessionJson() {
     if (!this.session) return;
+    this.refreshAnalysis(true);
     const blob = new Blob([JSON.stringify(this.session, null, 2)], { type: 'application/json' });
     downloadBlob(blob, `${safeName(this.session.presetName)}-${this.session.id}.origo.json`);
   }
 
   public exportAetherManifest() {
     if (!this.session) return;
+    this.refreshAnalysis(true);
     const manifest = buildAetherSourceManifest(this.session);
     const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
     downloadBlob(blob, `${safeName(this.session.presetName)}-${this.session.id}.aether.json`);
@@ -129,6 +144,19 @@ export class OrigoMusicSystem {
     if (!this.session || this.session.events.length === 0) return;
     const wav = await renderSessionToWav(this.session);
     downloadBlob(wav, `${safeName(this.session.presetName)}-${this.session.id}.wav`);
+  }
+
+  private refreshAnalysis(force: boolean) {
+    if (!this.session || this.session.events.length === 0) return;
+    const events = this.session.events;
+    const currentBar = events[events.length - 1].position.bar;
+    const enoughNewEvents = events.length - this.lastAnalysisEventCount >= 12;
+    const enteredNewBar = currentBar !== this.lastAnalysisBar;
+    if (!force && !enoughNewEvents && !enteredNewBar) return;
+
+    this.session.analysis = analyzeMusicSession(this.session);
+    this.lastAnalysisEventCount = events.length;
+    this.lastAnalysisBar = currentBar;
   }
 }
 
