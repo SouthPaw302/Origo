@@ -1,5 +1,6 @@
 import { SpeciesType, SynthModulationParams } from '../types';
 import { quantizeToMidi } from './scales';
+import { sampleInstrumentEngine } from './sampleInstrumentEngine';
 import { soundEngine } from './soundEngine';
 import { soundFontInstrumentEngine } from './soundfontInstrumentEngine';
 
@@ -104,7 +105,6 @@ export function installAudioGovernor() {
   if (installed) return limiter;
   installed = true;
 
-  // Start from a quieter, darker mix. Users can still raise any layer manually.
   soundEngine.setMasterVolume(0.52);
   soundEngine.setNeuralSynthVolume(0.22);
   soundEngine.setDroneVolume(0.14);
@@ -128,9 +128,14 @@ export function installAudioGovernor() {
     const delay = limiter.quantizedDelay(now);
 
     window.setTimeout(() => {
+      const config = soundEngine.getConfig();
+      const midi = quantizeToMidi(softenedPitch, config.rootMidi, config.scaleKey);
+
+      // Recorded samples are a first-class layer. They share the same governed event stream,
+      // so adding real instruments does not reintroduce the old collision/audio spam problem.
+      sampleInstrumentEngine.playSpeciesSample(species, midi, softenedIntensity);
+
       if (soundFontInstrumentEngine.shouldPlayInstrument()) {
-        const config = soundEngine.getConfig();
-        const midi = quantizeToMidi(softenedPitch, config.rootMidi, config.scaleKey);
         soundFontInstrumentEngine.playSpeciesNote(species, midi, softenedIntensity);
       }
 
