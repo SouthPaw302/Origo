@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Layers3, Pause, Play, Repeat2, Upload, X } from 'lucide-react';
+import { Download, Layers3, Pause, Play, Repeat2, Upload, X } from 'lucide-react';
 import { SpeciesType } from '../types';
+import { loadOrigoCc0StarterBank } from '../audio/builtInSampleBank';
 import { sampleInstrumentEngine } from '../audio/sampleInstrumentEngine';
 
 const SPECIES_LABEL: Record<SpeciesType, string> = {
@@ -24,6 +25,8 @@ export function SampleRackPanel() {
   const [loopBpm, setLoopBpm] = useState(100);
   const [loopBars, setLoopBars] = useState(4);
   const [error, setError] = useState<string | null>(null);
+  const [starterLoading, setStarterLoading] = useState(false);
+  const [starterProgress, setStarterProgress] = useState('');
 
   useEffect(() => sampleInstrumentEngine.subscribe(() => refresh((value) => value + 1)), []);
   const status = sampleInstrumentEngine.getStatus();
@@ -38,6 +41,19 @@ export function SampleRackPanel() {
     } finally {
       const input = speciesInputs.current[species];
       if (input) input.value = '';
+    }
+  };
+
+  const loadStarter = async () => {
+    setStarterLoading(true);
+    setStarterProgress('0 / 4');
+    setError(null);
+    try {
+      await loadOrigoCc0StarterBank((loaded, total) => setStarterProgress(`${loaded} / ${total}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load the CC0 starter bank.');
+    } finally {
+      setStarterLoading(false);
     }
   };
 
@@ -59,10 +75,15 @@ export function SampleRackPanel() {
         <div>
           <p className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-[#ffb24a]"><Layers3 className="h-3 w-3" /> Sample Rack</p>
           <p className="mt-1 text-xs font-medium text-white">Recorded instruments + recursive song loop</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#777]">Drop real WAV/MP3 instrument recordings into creature roles. Origo pitch-shifts them from a root note, but event timing still comes from the ecosystem.</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-[#777]">Use actual recorded instrument WAVs. Origo pitch-shifts them from a root note, but event timing still comes from the ecosystem.</p>
         </div>
         <button onClick={() => sampleInstrumentEngine.setEnabled(!status.enabled)} className={`border px-2 py-1 font-mono text-[8px] uppercase tracking-widest ${status.enabled ? 'border-[#00ff41]/50 text-[#00ff41]' : 'border-[#333] text-[#666]'}`}>{status.enabled ? 'On' : 'Off'}</button>
       </div>
+
+      <button disabled={starterLoading} onClick={loadStarter} className="mt-3 flex w-full items-center justify-center gap-2 border border-[#00ff41]/45 bg-[#00ff41]/5 px-3 py-2.5 font-mono text-[8px] font-bold uppercase tracking-wider text-[#70ff91] hover:bg-[#00ff41] hover:text-black disabled:opacity-40">
+        <Download className="h-3.5 w-3.5" /> {starterLoading ? `Loading CC0 instruments ${starterProgress}` : 'Load Origo CC0 Starter Bank · ~4 MB'}
+      </button>
+      <p className="mt-1.5 text-[8px] leading-relaxed text-[#555]">Lazy-loads four public-domain VSCO 2 CE recordings: violin pizzicato, cello pizzicato, sustained cello and flute staccato. You can replace any slot with your own recording.</p>
 
       <div className="mt-3 space-y-1.5">
         {Object.values(SpeciesType).map((species) => {
