@@ -31,7 +31,7 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Rate-limit reward/energy chimes.
 - Keep the governor independent from the DSP engine.
 
-### 9.7 — World Pacing + Mix Polish — **IN VALIDATION**
+### 9.7 — World Pacing + Mix Polish — **DONE**
 
 - Decouple world updates from display refresh rate with a fixed 24 Hz logical simulation clock.
 - Reduce species baseline movement and clamp extreme velocity spikes.
@@ -40,7 +40,18 @@ This roadmap tracks the functional music-system upgrade while preserving Origo's
 - Reduce live sound density to four discrete events per second and three continuous voices.
 - Soften FM depth, resonance, filter brightness, delay/reverb and default layer levels.
 - Snap discrete live events to a 125 ms musical grid for a more coherent rhythmic feel.
-- Keep pacing and sound polish as wrapper layers so they remain independently tunable.
+- Calibrate recorder timing from the actual world tick rate and selected BPM.
+
+### 9.8 — Readable Interactions — **IN VALIDATION**
+
+- Replace continuous contact harvesting with a harvest wind-up, discrete energy transfer and recovery/cooldown.
+- Replace Predator contact drain with a visible strike wind-up, discrete hit and recovery cycle.
+- Delay Architect crystal creation behind a construction wind-up.
+- Replace instantaneous Glider boost with a wind-up and short readable burst window.
+- Add per-agent interaction phases: Harvest, Strike, Build, Boost and Recover.
+- Render interaction progress arcs and selected-agent action labels directly on the simulation canvas.
+- Tie interaction sounds to completed actions instead of continuous collision ticks.
+- Preserve the wrappers as independently tunable gameplay systems rather than baking pacing into core RL math.
 
 ### 10 — Composition / Motif Memory — **DONE**
 
