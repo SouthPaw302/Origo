@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { SimulationEngine, SIMULATION_PRESETS } from '../simulation/engine';
 import { EnvironmentPreset } from '../types';
-import { Settings, Play, Pause, FastForward, RotateCcw, Sparkles, Flame, Sliders } from 'lucide-react';
+import { Settings, Play, Pause, RotateCcw, Sparkles, Flame, Sliders } from 'lucide-react';
 
 interface ControlPanelProps {
   engine: SimulationEngine;
@@ -70,52 +70,57 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
       id="control-panel-container"
       className="flex flex-col h-full bg-[#0a0a0a] border border-[#222] p-4 overflow-y-auto space-y-4 font-mono"
     >
-      {/* Simulation Playback Bar */}
-      <div id="playback-controls" className="flex items-center justify-between pb-3 border-b border-[#222]">
-        <div className="flex items-center gap-2">
-          <button
-            id="sim-play-pause-btn"
-            onClick={handlePlayPause}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all border ${
-              isRunning
-                ? 'bg-[#ff3e00]/20 text-[#ff3e00] border-[#ff3e00] hover:bg-[#ff3e00]/30'
-                : 'bg-[#00ff41]/20 text-[#00ff41] border-[#00ff41] hover:bg-[#00ff41]/30'
-            }`}
-          >
-            {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span>{isRunning ? 'Pause Sim' : 'Resume Sim'}</span>
-          </button>
-
-          <button
-            id="sim-reset-btn"
-            onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#050505] hover:bg-[#1a1a1a] text-[#888] hover:text-white text-xs font-bold uppercase tracking-wider border border-[#333] transition-all"
-            title="Reset Environment & Re-seed Agents"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset</span>
-          </button>
-        </div>
-
-        {/* Speed Selector (1x, 2x, 5x, 10x Turbo) */}
-        <div id="sim-speed-selector" className="flex items-center bg-[#050505] p-0.5 border border-[#333]">
-          {[1, 2, 5, 10].map((s) => (
+      <div id="playback-controls" className="space-y-2 pb-3 border-b border-[#222]">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <button
-              key={s}
-              onClick={() => handleSpeedChange(s)}
-              className={`px-2 py-0.5 text-[11px] font-mono font-bold transition-all ${
-                speed === s
-                  ? 'bg-[#00ff41] text-black shadow-sm'
-                  : 'text-[#666] hover:text-white'
+              id="sim-play-pause-btn"
+              onClick={handlePlayPause}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all border ${
+                isRunning
+                  ? 'bg-[#ff3e00]/20 text-[#ff3e00] border-[#ff3e00] hover:bg-[#ff3e00]/30'
+                  : 'bg-[#00ff41]/20 text-[#00ff41] border-[#00ff41] hover:bg-[#00ff41]/30'
               }`}
             >
-              {s}x
+              {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              <span>{isRunning ? 'Pause Sim' : 'Resume Sim'}</span>
             </button>
-          ))}
+
+            <button
+              id="sim-reset-btn"
+              onClick={handleReset}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#050505] hover:bg-[#1a1a1a] text-[#888] hover:text-white text-xs font-bold uppercase tracking-wider border border-[#333] transition-all"
+              title="Reset Environment & Re-seed Agents"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.16em] text-[#777]">World Pace</div>
+            <div className="text-[9px] text-[#555]">Normal is tuned for watching behavior, not benchmarking.</div>
+          </div>
+          <div id="sim-speed-selector" className="flex items-center bg-[#050505] p-0.5 border border-[#333]">
+            {[0.5, 1, 1.5, 2].map((s) => (
+              <button
+                key={s}
+                onClick={() => handleSpeedChange(s)}
+                className={`px-2 py-0.5 text-[11px] font-mono font-bold transition-all ${
+                  speed === s
+                    ? 'bg-[#00ff41] text-black shadow-sm'
+                    : 'text-[#666] hover:text-white'
+                }`}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Preset Scenarios */}
       <div id="presets-section" className="space-y-2">
         <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
           <span className="flex items-center gap-1 text-[#ff3e00]">
@@ -149,7 +154,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
         </div>
       </div>
 
-      {/* Pure Reinforcement Learning Hyperparameters */}
       <div id="hyperparameters-section" className="space-y-3 pt-2 border-t border-[#222]">
         <div className="flex items-center justify-between text-xs uppercase tracking-wider">
           <span className="flex items-center gap-1 text-[#00ff41]">
@@ -166,7 +170,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
           </button>
         </div>
 
-        {/* Learning Rate */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] text-[#888]">
             <span>Learning Rate (α)</span>
@@ -183,7 +186,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
           />
         </div>
 
-        {/* Curiosity Exploration Weight */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] text-[#888]">
             <span>Curiosity Bonus (β)</span>
@@ -200,7 +202,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
           />
         </div>
 
-        {/* Mutation Rate */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] text-[#888]">
             <span>Weight Mutation Rate</span>
@@ -218,14 +219,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
         </div>
       </div>
 
-      {/* Procedural Environment & Acoustic Physics */}
       <div id="env-physics-section" className="space-y-3 pt-2 border-t border-[#222]">
         <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-[#888]">
           <Settings className="w-3.5 h-3.5 text-[#ff3e00]" />
           <span>Acoustic Physics & Field</span>
         </div>
 
-        {/* Acoustic Wave Speed */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] text-[#888]">
             <span>Acoustic Wave Speed</span>
@@ -242,7 +241,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ engine, onPresetChan
           />
         </div>
 
-        {/* Harmonic Resonance Field Decay */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] text-[#888]">
             <span>Harmonic Field Persistence</span>
