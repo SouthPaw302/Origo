@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Download, FileAudio, FileJson, Link2, Radio, Repeat2, Square, Trash2 } from 'lucide-react';
+import { sampleInstrumentEngine } from '../audio/sampleInstrumentEngine';
 import { SimulationEngine } from '../simulation/engine';
 import { origoMusicSystem } from '../music/musicSystem';
 import { InstrumentPanel } from './InstrumentPanel';
@@ -13,9 +14,18 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
   const [feedingBack, setFeedingBack] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  useEffect(() => origoMusicSystem.subscribe(() => refresh((v) => v + 1)), []);
+  useEffect(() => {
+    const rerender = () => refresh((v) => v + 1);
+    const unsubMusic = origoMusicSystem.subscribe(rerender);
+    const unsubSamples = sampleInstrumentEngine.subscribe(rerender);
+    return () => {
+      unsubMusic();
+      unsubSamples();
+    };
+  }, []);
 
   const status = origoMusicSystem.getStatus();
+  const sampleStatus = sampleInstrumentEngine.getStatus();
   const hasEvents = status.eventCount > 0;
 
   const exportWav = async () => {
@@ -56,6 +66,9 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
         {status.currentSection && (
           <div className="mt-2 border border-[#ffb24a]/25 bg-[#171006] px-2.5 py-2 text-[9px] uppercase tracking-wider text-[#ffb24a]">Ecology: {status.currentSection}</div>
         )}
+        {sampleStatus.aetherLoop.armed && !status.recording && (
+          <div className="mt-2 border border-[#00ff41]/30 bg-[#061209] px-2.5 py-2 text-[9px] uppercase tracking-wider text-[#70ff91]">Return layer armed · Record New Take launches both at bar zero</div>
+        )}
 
         <div className="mt-3 flex gap-2">
           {!status.recording ? (
@@ -74,9 +87,9 @@ export function MusicCapturePanel({ engine }: { engine: SimulationEngine }) {
           <div className="mt-3 border-t border-[#222] pt-3">
             <p className="mb-2 text-[8px] uppercase tracking-[0.18em] text-[#666]">Build from this take</p>
             <button disabled={feedingBack} onClick={feedBack} className="mb-2 flex w-full items-center justify-center gap-1.5 border border-[#ffb24a]/70 bg-[#ffb24a]/5 px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider text-[#ffb24a] transition hover:bg-[#ffb24a] hover:text-black disabled:opacity-40">
-              <Repeat2 className="h-3.5 w-3.5" /> {feedingBack ? 'Rendering Return Loop…' : 'Feed Take Back In · Start Song Layer'}
+              <Repeat2 className="h-3.5 w-3.5" /> {feedingBack ? 'Rendering Return Layer…' : sampleStatus.aetherLoop.armed ? 'Return Layer Armed for Next Take' : 'Feed Take Back In · Arm Next Layer'}
             </button>
-            <p className="mb-3 text-[9px] font-sans leading-relaxed text-[#666]">Renders this take into the Aether Return Loop. Leave it playing, then record a new ecosystem pass over it to grow the song layer by layer.</p>
+            <p className="mb-3 text-[9px] font-sans leading-relaxed text-[#666]">Renders this take into the Aether Return Loop and arms it. When you press Record New Take, the loop and the new recording begin together at that take's bar zero.</p>
 
             <p className="mb-2 text-[8px] uppercase tracking-[0.18em] text-[#666]">Export this take</p>
             <div className="grid grid-cols-3 gap-2">
