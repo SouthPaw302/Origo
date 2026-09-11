@@ -112,7 +112,7 @@ function resolveHarvest(agent: Agent, env: SimulationEnvironment, state: Runtime
   startRecovery(state, 8);
 }
 
-function resolveStrike(agent: Agent, allAgents: Agent[], state: RuntimeState) {
+function resolveStrike(agent: Agent, env: SimulationEnvironment, allAgents: Agent[], state: RuntimeState) {
   const target = allAgents.find((candidate) => candidate.id === state.targetAgentId);
   if (target && target.energy > 0) {
     const distance = Math.hypot(target.x - agent.x, target.y - agent.y);
@@ -121,7 +121,13 @@ function resolveStrike(agent: Agent, allAgents: Agent[], state: RuntimeState) {
       target.energy -= siphon;
       agent.energy = Math.min(agent.maxEnergy, agent.energy + siphon * 0.55);
       addInteractionReward(agent, 0.55);
-      soundEngine.triggerAgentSound(SpeciesType.Predator, agent.x / 1000, agent.y / 700, 0.72, 0.2);
+      soundEngine.triggerAgentSound(
+        SpeciesType.Predator,
+        clamp01(agent.x / Math.max(1, env.width)),
+        clamp01(agent.y / Math.max(1, env.height)),
+        0.72,
+        0.2
+      );
       if (target.energy <= 0) {
         agent.kills++;
         agent.updateElo(target, 1);
@@ -140,12 +146,18 @@ function resolveBuild(agent: Agent, env: SimulationEnvironment, state: RuntimeSt
     env.spawnEnergyNode(x, y);
     agent.nodesCreated++;
     addInteractionReward(agent, 0.45);
-    soundEngine.triggerAgentSound(SpeciesType.Architect, clamp01(x / Math.max(1, env.width)), clamp01(y / Math.max(1, env.height)), 0.45, 0.05);
+    soundEngine.triggerAgentSound(
+      SpeciesType.Architect,
+      clamp01(x / Math.max(1, env.width)),
+      clamp01(y / Math.max(1, env.height)),
+      0.45,
+      0.05
+    );
   }
   startRecovery(state, 12);
 }
 
-function resolveBoost(agent: Agent, state: RuntimeState) {
+function resolveBoost(agent: Agent, env: SimulationEnvironment, state: RuntimeState) {
   const speed = Math.hypot(agent.vx, agent.vy);
   const headingX = speed > 0.08 ? agent.vx / speed : Math.cos(agent.angle);
   const headingY = speed > 0.08 ? agent.vy / speed : Math.sin(agent.angle);
@@ -154,7 +166,13 @@ function resolveBoost(agent: Agent, state: RuntimeState) {
   agent.vy = headingY * burst;
   state.burstTicks = BOOST_BURST_TICKS;
   addInteractionReward(agent, 0.08);
-  soundEngine.triggerAgentSound(SpeciesType.Glider, clamp01(agent.x / 1000), clamp01(agent.y / 700), 0.48, 0.04);
+  soundEngine.triggerAgentSound(
+    SpeciesType.Glider,
+    clamp01(agent.x / Math.max(1, env.width)),
+    clamp01(agent.y / Math.max(1, env.height)),
+    0.48,
+    0.04
+  );
   startRecovery(state, 8);
 }
 
@@ -180,13 +198,13 @@ function advanceInteraction(agent: Agent, env: SimulationEnvironment, allAgents:
       resolveHarvest(agent, env, state);
       break;
     case 'striking':
-      resolveStrike(agent, allAgents, state);
+      resolveStrike(agent, env, allAgents, state);
       break;
     case 'building':
       resolveBuild(agent, env, state);
       break;
     case 'boosting':
-      resolveBoost(agent, state);
+      resolveBoost(agent, env, state);
       break;
   }
 }
@@ -246,8 +264,6 @@ export function installInteractionPacing() {
     const previousMaxNodes = env.maxNodes;
     const nodeRadii = env.energyNodes.map((node) => node.radius);
 
-    // Native interactions happen every contact tick. Disable those collision paths here;
-    // the state machine below resolves them as readable actions instead.
     for (const node of env.energyNodes) node.radius = -1000;
     if (this.species === SpeciesType.Predator) this.radius = -1000;
     if (this.species === SpeciesType.Architect) env.maxNodes = -1000;
@@ -264,17 +280,15 @@ export function installInteractionPacing() {
     }
 
     const abilityTriggered = previousAbilityCooldown <= 0 && this.abilityCooldown > 0;
-    if (abilityTriggered && state.phase === 'idle') {
-      if (this.species === SpeciesType.Architect) {
-        state.targetX = this.x;
-        state.targetY = this.y;
-        setPhase(state, 'building', BUILD_WINDUP);
-      } else if (this.species === SpeciesType.Glider) {
-        // Native Glider boost is immediate. Remove it and replay it after a visible wind-up.
-        this.vx /= 1.8;
-        this.vy /= 1.8;
-        setPhase(state, 'boosting', BOOST_WINDUP);
-      }
+    if (abilityTriggered && this.species === SpeciesType.Glider) {
+      // Native Glider boost is immediate. Always remove it; replay only when the agent is free to wind up.
+      this.vx /= 1.8;
+      this.vy /= 1.8;
+      if (state.phase === 'idle') setPhase(state, 'boosting', BOOST_WINDUP);
+    } else if (abilityTriggered && this.species === SpeciesType.Architect && state.phase === 'idle') {
+      state.targetX = this.x;
+      state.targetY = this.y;
+      setPhase(state, 'building', BUILD_WINDUP);
     }
 
     maybeStartContactInteraction(this, env, allAgents, state);
