@@ -4,7 +4,6 @@ import { OrigoEventMotifRef, OrigoMotifRecord, OrigoMusicalEvent } from './types
 const MOTIF_LENGTH = 4;
 const MAX_RECENT_EVENTS = 8;
 const MAX_EXPORTED_MOTIFS = 16;
-const RECALL_CYCLE_BARS = 4;
 const SPECIES_RECALL_OFFSET: Record<SpeciesType, number> = {
   [SpeciesType.Resonator]: 0,
   [SpeciesType.Predator]: 1,
@@ -38,6 +37,7 @@ export class OrigoMotifMemory {
   private records = new Map<string, OrigoMotifRecord>();
   private recallBar = new Map<SpeciesType, number>();
   private recallCursor = new Map<SpeciesType, number>();
+  private recallPressure = 0.65;
 
   public observe(events: OrigoMusicalEvent[]) {
     for (const event of events) {
@@ -89,14 +89,26 @@ export class OrigoMotifMemory {
     }
   }
 
+  public setRecallPressure(value: number) {
+    this.recallPressure = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0.65));
+  }
+
+  private recallCycleBars() {
+    if (this.recallPressure >= 0.9) return 2;
+    if (this.recallPressure >= 0.62) return 4;
+    return 6;
+  }
+
   public shapePitch(
     species: SpeciesType,
     proposedMidi: number,
     bar: number
   ): { midiNote: number; motif?: OrigoEventMotifRef } {
+    const cycleBars = this.recallCycleBars();
+    const offset = SPECIES_RECALL_OFFSET[species] % cycleBars;
     if (
-      bar < RECALL_CYCLE_BARS ||
-      bar % RECALL_CYCLE_BARS !== SPECIES_RECALL_OFFSET[species]
+      bar < cycleBars ||
+      bar % cycleBars !== offset
     ) {
       return { midiNote: proposedMidi };
     }
@@ -147,6 +159,7 @@ export class OrigoMotifMemory {
     this.records.clear();
     this.recallBar.clear();
     this.recallCursor.clear();
+    this.recallPressure = 0.65;
   }
 
   private bestMotifForSpecies(species: SpeciesType) {
