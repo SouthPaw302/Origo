@@ -6,6 +6,7 @@ export interface SampleZoneStatus {
   fileName: string;
   rootMidi: number;
   gain: number;
+  pitchTracking: boolean;
 }
 
 export interface SampleSlotStatus {
@@ -50,7 +51,26 @@ export interface SampleZoneInput {
   rootMidi: number;
   buffer: AudioBuffer;
   gain?: number;
+  pitchTracking?: boolean;
   id?: string;
+}
+
+export interface SampleRenderZone {
+  fileName: string;
+  rootMidi: number;
+  gain: number;
+  pitchTracking: boolean;
+  buffer: AudioBuffer;
+}
+
+export interface SampleRenderSlot {
+  gain: number;
+  zones: SampleRenderZone[];
+}
+
+export interface SampleRenderSnapshot {
+  enabled: boolean;
+  species: Record<SpeciesType, SampleRenderSlot>;
 }
 
 const DEFAULT_ROOT: Record<SpeciesType, number> = {
@@ -176,11 +196,12 @@ export class SampleInstrumentEngine {
     fileName: string,
     rootMidi: number,
     replaceExisting = false,
-    gain = 1
+    gain = 1,
+    pitchTracking = true
   ) {
     const context = this.ensureContext();
     const buffer = await context.decodeAudioData(await blob.arrayBuffer());
-    this.addDecodedZone(species, fileName, rootMidi, buffer, replaceExisting, gain);
+    this.addDecodedZone(species, fileName, rootMidi, buffer, replaceExisting, gain, pitchTracking);
   }
 
   public clearSpeciesSample(species: SpeciesType, emit = true) {
@@ -209,7 +230,7 @@ export class SampleInstrumentEngine {
     const source = context.createBufferSource();
     const gain = context.createGain();
     source.buffer = zone.buffer;
-    const semitones = clamp(targetMidi - zone.rootMidi, -18, 18);
+    const semitones = zone.pitchTracking ? clamp(targetMidi - zone.rootMidi, -18, 18) : 0;
     source.playbackRate.value = Math.pow(2, semitones / 12);
     const native = soundEngine.getConfig();
     gain.gain.value =
@@ -222,6 +243,19 @@ export class SampleInstrumentEngine {
     if (context.state === 'suspended') void context.resume();
     source.start();
     return true;
+  }
+
+  /** Snapshot the active recorded-sample palette at take start so later bank changes do not alter that take's render. */
+  public getRenderSnapshot(): SampleRenderSnapshot {
+    return {
+      enabled: this.enabled,
+      species: {
+        [SpeciesType.Resonator]: this.renderSlot(SpeciesType.Resonator),
+        [SpeciesType.Predator]: this.renderSlot(SpeciesType.Predator),
+        [SpeciesType.Architect]: this.renderSlot(SpeciesType.Architect),
+        [SpeciesType.Glider]: this.renderSlot(SpeciesType.Glider),
+      },
+    };
   }
 
   public async loadAetherLoop(file: File, sourceBpm: number, bars: number) {
@@ -318,25 +352,27 @@ export class SampleInstrumentEngine {
     rootMidi: number,
     buffer: AudioBuffer,
     replaceExisting = false,
-    gain = 1
+    gain = 1,
+    pitchTracking = true
   ) {
     const slot = this.species[species];
     if (replaceExisting) slot.zones = [];
     const root = Math.round(clamp(rootMidi, 0, 127));
     slot.zones = slot.zones.filter((zone) => zone.rootMidi !== root);
-    slot.zones.push(this.createZone(fileName, root, buffer, gain));
+    slot.zones.push(this.createZone(fileName, root, buffer, gain, pitchTracking));
     slot.zones.sort((a, b) => a.rootMidi - b.rootMidi);
     if (slot.zones.length === 1) slot.rootMidi = root;
     this.refreshSlotSummary(species);
     this.emit();
   }
 
-  private createZone(fileName: string, rootMidi: number, buffer: AudioBuffer, gain = 1): SampleZoneRuntime {
+  private createZone(fileName: string, rootMidi: number, buffer: AudioBuffer, gain = 1, pitchTracking = true): SampleZoneRuntime {
     return {
       id: `zone_${++this.zoneCounter}`,
       fileName,
       rootMidi: Math.round(clamp(rootMidi, 0, 127)),
       gain: clamp(gain, 0, 1.5),
+      pitchTracking,
       buffer,
     };
   }
@@ -359,7 +395,21 @@ export class SampleInstrumentEngine {
       rootMidi: slot.rootMidi,
       gain: slot.gain,
       zoneCount: slot.zones.length,
-      zones: slot.zones.map(({ id, fileName, rootMidi, gain }) => ({ id, fileName, rootMidi, gain })),
+      zones: slot.zones.map(({ id, fileName, rootMidi, gain, pitchTracking }) => ({ id, fileName, rootMidi, gain, pitchTracking })),
+    };
+  }
+
+  private renderSlot(species: SpeciesType): SampleRenderSlot {
+    const slot = this.species[species];
+    return {
+      gain: slot.gain,
+      zones: slot.zones.map(({ fileName, rootMidi, gain, pitchTracking, buffer }) => ({
+        fileName,
+        rootMidi,
+        gain,
+        pitchTracking,
+        buffer,
+      })),
     };
   }
 

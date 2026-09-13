@@ -1,7 +1,7 @@
 import { SimulationEngine } from '../simulation/engine';
 import { WORLD_PACING } from '../simulation/worldPacing';
 import { phraseGuidance } from '../models/phraseGuidance';
-import { sampleInstrumentEngine } from '../audio/sampleInstrumentEngine';
+import { sampleInstrumentEngine, type SampleRenderSnapshot } from '../audio/sampleInstrumentEngine';
 import { buildAetherSourceManifest } from '../integration/aetherStreamContract';
 import { OrigoMusicClock } from './musicClock';
 import { OrigoMusicDirector } from './musicDirector';
@@ -49,6 +49,7 @@ export class OrigoMusicSystem {
   private lastProcessedStep = -1;
   private lastAnalysisEventCount = 0;
   private lastAnalysisBar = -1;
+  private sampleRenderSnapshot: SampleRenderSnapshot | null = null;
   private listeners = new Set<() => void>();
 
   public subscribe(listener: () => void) {
@@ -65,6 +66,7 @@ export class OrigoMusicSystem {
     const world = musicWorldRegistry.getActive();
     const tempo = preset.soundPreset.tempoBpm;
     sampleInstrumentEngine.setTempo(tempo);
+    this.sampleRenderSnapshot = sampleInstrumentEngine.getRenderSnapshot();
     this.clock = new OrigoMusicClock(
       tempo,
       recordingStepsPerBeat(engine, tempo),
@@ -126,6 +128,7 @@ export class OrigoMusicSystem {
     this.lastAnalysisBar = -1;
     this.director.reset();
     this.sectionTracker.reset();
+    this.sampleRenderSnapshot = null;
     phraseGuidance.clear();
     this.emit();
   }
@@ -216,7 +219,7 @@ export class OrigoMusicSystem {
 
   public async prepareWav(): Promise<PreparedMusicExport | null> {
     if (!this.session || this.session.events.length === 0) return null;
-    const wav = await renderSessionToWav(this.session);
+    const wav = await renderSessionToWav(this.session, this.sampleRenderSnapshot);
     return {
       blob: wav,
       filename: `${safeName(this.session.presetName)}-${this.session.id}.wav`,
@@ -248,7 +251,7 @@ export class OrigoMusicSystem {
   public async feedTakeBackAsLoop(armForNextTake = true) {
     if (!this.session || this.session.events.length === 0) return false;
     this.refreshAnalysis(true);
-    const wav = await renderSessionToWav(this.session);
+    const wav = await renderSessionToWav(this.session, this.sampleRenderSnapshot);
     const bars = Math.max(1, this.getStatus().barsCaptured || 1);
     await sampleInstrumentEngine.loadAetherLoopBlob(
       wav,

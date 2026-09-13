@@ -9,9 +9,11 @@ export interface BuiltInSampleDefinition {
   url: string;
   source: string;
   license: 'CC0-1.0';
+  pitchTracking?: boolean;
 }
 
 const VSCO_RAW = 'https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master';
+const STARGATE_RAW = 'https://raw.githubusercontent.com/stargatedaw/stargate-sample-pack/main/stargate-sample-pack/fugue-state-audio/drums';
 
 /**
  * Lazy-loaded compact multisample bank sourced from VSCO 2 Community Edition.
@@ -39,12 +41,30 @@ export const ORIGO_CC0_STARTER_BANK: BuiltInSampleDefinition[] = [
   { species: SpeciesType.Glider, label: 'Flute Staccato A4', instrument: 'Flute staccato', rootMidi: 69, url: `${VSCO_RAW}/Woodwinds/Flute/stac/LDFlute_stac_A4_v1_rr1.wav`, source: 'VSCO 2 Community Edition / Versilian Studios', license: 'CC0-1.0' },
 ];
 
-export async function loadOrigoCc0StarterBank(onProgress?: (loaded: number, total: number) => void) {
+/**
+ * Compact CC0 electronic-production palette from the Stargate sample pack.
+ * Selector roots choose between one-shots; pitchTracking=false keeps kicks,
+ * snares, claps and hats at their recorded pitch instead of transposing them.
+ */
+export const ORIGO_CC0_ELECTRONIC_BANK: BuiltInSampleDefinition[] = [
+  { species: SpeciesType.Resonator, label: 'FM Percussion', instrument: 'Electronic FM percussion', rootMidi: 60, url: `${STARGATE_RAW}/percussion/sdbkit-fmperc.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+  { species: SpeciesType.Resonator, label: '8-bit Percussion', instrument: 'Electronic 8-bit percussion', rootMidi: 72, url: `${STARGATE_RAW}/percussion/synthkit-8bit.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+  { species: SpeciesType.Predator, label: 'Synth Kick', instrument: 'Electronic kick', rootMidi: 36, url: `${STARGATE_RAW}/kicks/synthkit-kick.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+  { species: SpeciesType.Architect, label: 'Synth Snare', instrument: 'Electronic snare', rootMidi: 48, url: `${STARGATE_RAW}/snares/synthkit-snare.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+  { species: SpeciesType.Architect, label: 'Synth Clap', instrument: 'Electronic clap', rootMidi: 60, url: `${STARGATE_RAW}/claps/synthkit-clap.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+  { species: SpeciesType.Glider, label: 'Closed Hat', instrument: 'Electronic closed hi-hat', rootMidi: 72, url: `${STARGATE_RAW}/hihats/synthkit-hatclsd.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+  { species: SpeciesType.Glider, label: 'Open Hat', instrument: 'Electronic open hi-hat', rootMidi: 84, url: `${STARGATE_RAW}/hihats/synthkit-hatopen.wav`, source: 'Stargate Sample Pack / Fugue State Audio', license: 'CC0-1.0', pitchTracking: false },
+];
+
+async function loadBank(
+  bank: BuiltInSampleDefinition[],
+  onProgress?: (loaded: number, total: number) => void
+) {
   const species = Object.values(SpeciesType);
   for (const entry of species) sampleInstrumentEngine.clearSpeciesSample(entry, false);
 
   let loaded = 0;
-  for (const definition of ORIGO_CC0_STARTER_BANK) {
+  for (const definition of bank) {
     const response = await fetch(definition.url, { mode: 'cors', cache: 'force-cache' });
     if (!response.ok) {
       throw new Error(`Unable to fetch ${definition.label} (${response.status}).`);
@@ -54,10 +74,21 @@ export async function loadOrigoCc0StarterBank(onProgress?: (loaded: number, tota
       definition.species,
       blob,
       `${definition.label}.wav`,
-      definition.rootMidi
+      definition.rootMidi,
+      false,
+      1,
+      definition.pitchTracking ?? true
     );
     loaded++;
-    onProgress?.(loaded, ORIGO_CC0_STARTER_BANK.length);
+    onProgress?.(loaded, bank.length);
   }
-  return ORIGO_CC0_STARTER_BANK.length;
+  return bank.length;
+}
+
+export async function loadOrigoCc0StarterBank(onProgress?: (loaded: number, total: number) => void) {
+  return loadBank(ORIGO_CC0_STARTER_BANK, onProgress);
+}
+
+export async function loadOrigoCc0ElectronicBank(onProgress?: (loaded: number, total: number) => void) {
+  return loadBank(ORIGO_CC0_ELECTRONIC_BANK, onProgress);
 }
