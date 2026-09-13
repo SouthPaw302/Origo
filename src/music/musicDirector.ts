@@ -4,20 +4,7 @@ import { phraseGuidance } from '../models/phraseGuidance';
 import { OrigoMusicClock } from './musicClock';
 import { EcologicalSectionBias, OrigoMusicalEvent } from './types';
 import { OrigoMotifMemory } from './motifMemory';
-
-const SPECIES_OCTAVE: Record<SpeciesType, number> = {
-  [SpeciesType.Resonator]: 12,
-  [SpeciesType.Predator]: -12,
-  [SpeciesType.Architect]: 0,
-  [SpeciesType.Glider]: 24,
-};
-
-const SPECIES_DURATION: Record<SpeciesType, number> = {
-  [SpeciesType.Resonator]: 0.75,
-  [SpeciesType.Predator]: 0.25,
-  [SpeciesType.Architect]: 2,
-  [SpeciesType.Glider]: 0.5,
-};
+import { musicWorldRegistry } from './musicWorlds';
 
 const DEFAULT_SECTION_BIAS: EcologicalSectionBias = {
   density: 0.58,
@@ -53,14 +40,20 @@ export class OrigoMusicDirector {
       registerSemitones: clamp(Math.round(bias.registerSemitones), -12, 12),
       motifRecallPressure: clamp(bias.motifRecallPressure, 0, 1),
     };
-    this.motifMemory.setRecallPressure(this.sectionBias.motifRecallPressure);
   }
 
   public collect(engine: SimulationEngine, clock: OrigoMusicClock): OrigoMusicalEvent[] {
     const preset = engine.activePreset.soundPreset;
+    const world = musicWorldRegistry.getActive();
     const events: OrigoMusicalEvent[] = [];
     const slotStep = clock.quantizedStep(engine.stepCount);
-    const intensityThreshold = 0.34 + (1 - this.sectionBias.density) * 0.18;
+    const position = clock.positionForStep(engine.stepCount);
+
+    this.motifMemory.setRecallPressure(clamp(
+      this.sectionBias.motifRecallPressure + world.director.motifRecallOffset,
+      0,
+      1
+    ));
 
     for (const agent of engine.agents) {
       const actions: number[] = agent.lastActionOutputs || [];
@@ -68,6 +61,7 @@ export class OrigoMusicDirector {
 
       const [thrust, steer, pulse, terraform, ability] = actions.map((v: number) => clamp(v, -1, 1));
       const species = agent.species as SpeciesType;
+      const speciesRule = world.director.species[species];
       const speed = Math.hypot(agent.vx, agent.vy);
       const energyNorm = clamp(agent.energy / Math.max(1, agent.maxEnergy), 0, 1);
 
@@ -75,6 +69,15 @@ export class OrigoMusicDirector {
         Math.max(Math.abs(pulse), Math.abs(terraform), Math.abs(ability), speed / Math.max(1, agent.config.baseSpeed * 1.4)),
         0,
         1
+      );
+
+      const preferred = !speciesRule.preferredSubdivisions?.length || speciesRule.preferredSubdivisions.includes(position.subdivision);
+      const rhythmBias = speciesRule.rhythmBias ?? 0;
+      const rhythmicThresholdOffset = preferred ? -rhythmBias : rhythmBias * 0.45;
+      const intensityThreshold = clamp(
+        0.34 + (1 - this.sectionBias.density) * 0.18 + world.director.intensityThresholdOffset + rhythmicThresholdOffset,
+        0.16,
+        0.82
       );
       if (behavioralIntensity < intensityThreshold) continue;
 
@@ -91,14 +94,14 @@ export class OrigoMusicDirector {
         Math.round(
           preset.rootNote +
           scale[scaleIndex] +
-          SPECIES_OCTAVE[species] +
-          this.sectionBias.registerSemitones
+          speciesRule.octaveSemitones +
+          this.sectionBias.registerSemitones +
+          world.director.registerSemitones
         ),
         24,
         108
       );
 
-      const position = clock.positionForStep(engine.stepCount);
       const motifShaped = this.motifMemory.shapePitch(species, proposedMidi, position.bar);
       const modelShaped = canReceivePhraseGuidance(species)
         ? phraseGuidance.shapePitch(motifShaped.midiNote)
@@ -116,8 +119,8 @@ export class OrigoMusicDirector {
         step: engine.stepCount,
         position,
         midiNote: modelShaped.midiNote,
-        velocity: clamp(0.25 + behavioralIntensity * 0.6 + energyNorm * 0.15, 0.05, 1),
-        durationBeats: SPECIES_DURATION[species],
+        velocity: clamp((0.25 + behavioralIntensity * 0.6 + energyNorm * 0.15) * speciesRule.velocityScale, 0.05, 1),
+        durationBeats: speciesRule.durationBeats,
         pan: clamp(xNorm * 2 - 1, -1, 1),
         intensity: behavioralIntensity,
         energy: energyNorm,
