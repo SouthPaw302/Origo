@@ -2,6 +2,10 @@
 
 This repository is connected to Vercel. Treat every push to any Vercel-tracked branch as a scarce deployment action.
 
+## Current deployment state
+
+Automatic Git deployments are intentionally disabled in `vercel.json` with `git.deploymentEnabled: false`. Do not re-enable automatic Vercel deployments unless the user explicitly asks to deploy or re-enable them.
+
 ## Mandatory deployment rule
 
 - **Do not use repeated pushes to a Vercel-tracked branch as an edit/test loop.**
