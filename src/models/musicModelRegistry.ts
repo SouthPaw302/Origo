@@ -1,11 +1,21 @@
 import { SpeciesType } from '../types';
 import { OrigoMusicSession } from '../music/types';
-import { PhraseModelRequest, PhraseSuggestion, MusicModelStatus } from './types';
+import { PhraseModelRequest, PhraseSuggestion, MusicModelStatus, MusicModelLoadPhase } from './types';
 
 interface PendingRequest {
   resolve: (value: any) => void;
   reject: (error: Error) => void;
   timeout: number;
+}
+
+interface WorkerMessage {
+  type?: 'progress' | 'ready' | 'generated' | 'error';
+  requestId?: string;
+  phase?: MusicModelLoadPhase;
+  progress?: number;
+  detail?: string;
+  notes?: unknown[];
+  error?: string;
 }
 
 class MagentaPhraseAdapter {
@@ -19,8 +29,11 @@ class MagentaPhraseAdapter {
     capability: 'phrase-continuation',
     state: 'idle',
     error: null,
-    downloadLabel: '~13 MB model + runtime',
+    downloadLabel: '~13 MB checkpoint',
     optional: true,
+    phase: 'idle',
+    progress: 0,
+    detail: 'Optional model is off',
   };
 
   public subscribe(listener: () => void) {
@@ -34,24 +47,48 @@ class MagentaPhraseAdapter {
 
   public async load() {
     if (this.status.state === 'ready') return;
-    if (this.status.state === 'loading') throw new Error('Phrase model is already loading.');
-    this.setStatus({ state: 'loading', error: null });
+    if (this.status.state === 'loading') return;
+    this.setStatus({
+      state: 'loading',
+      error: null,
+      phase: 'runtime',
+      progress: 0.04,
+      detail: 'Starting isolated browser model',
+    });
 
     try {
       this.ensureWorker();
-      await this.request('init', undefined, 120000);
-      this.setStatus({ state: 'ready', error: null });
+      await this.request('init', undefined, 150000);
+      this.setStatus({
+        state: 'ready',
+        error: null,
+        phase: 'ready',
+        progress: 1,
+        detail: 'Phrase model ready',
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to load phrase model.';
       this.disposeWorker();
-      this.setStatus({ state: 'error', error: message });
+      this.setStatus({
+        state: 'error',
+        error: message,
+        phase: 'idle',
+        progress: 0,
+        detail: 'Model load failed',
+      });
       throw error;
     }
   }
 
   public unload() {
     this.disposeWorker();
-    this.setStatus({ state: 'idle', error: null });
+    this.setStatus({
+      state: 'idle',
+      error: null,
+      phase: 'idle',
+      progress: 0,
+      detail: 'Optional model is off',
+    });
   }
 
   public async generateFromSession(
@@ -68,8 +105,6 @@ class MagentaPhraseAdapter {
       )
       .sort((a, b) => a.position.beat - b.position.beat);
 
-    // The basic RNN is monophonic. Collapse simultaneous Origo events to one
-    // melodic event per sixteenth-note slot instead of feeding it bass/drone/polyphony.
     const bySlot = new Map<number, (typeof melodic)[number]>();
     for (const event of melodic) {
       bySlot.set(Math.round(event.position.beat * 4), event);
@@ -111,13 +146,26 @@ class MagentaPhraseAdapter {
 
   private ensureWorker() {
     if (this.worker) return;
-    this.worker = new Worker('/origo-magenta-rnn-worker.js');
-    this.worker.onmessage = (event) => {
+    this.worker = new Worker(new URL('./phraseModelWorker.ts', import.meta.url), { type: 'module' });
+    this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       const message = event.data || {};
-      const pending = this.pending.get(message.requestId);
+      if (message.type === 'progress') {
+        this.setStatus({
+          state: 'loading',
+          phase: message.phase ?? this.status.phase,
+          progress: typeof message.progress === 'number' ? message.progress : this.status.progress,
+          detail: message.detail ?? this.status.detail,
+          error: null,
+        });
+        return;
+      }
+
+      const requestId = message.requestId;
+      if (!requestId) return;
+      const pending = this.pending.get(requestId);
       if (!pending) return;
       window.clearTimeout(pending.timeout);
-      this.pending.delete(message.requestId);
+      this.pending.delete(requestId);
 
       if (message.type === 'error') {
         pending.reject(new Error(message.error || 'Phrase model worker failed.'));
@@ -134,7 +182,13 @@ class MagentaPhraseAdapter {
         pending.reject(error);
       }
       this.pending.clear();
-      this.setStatus({ state: 'error', error: error.message });
+      this.setStatus({
+        state: 'error',
+        error: error.message,
+        phase: 'idle',
+        progress: 0,
+        detail: 'Model worker crashed',
+      });
     };
   }
 
@@ -144,7 +198,7 @@ class MagentaPhraseAdapter {
     return new Promise((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         this.pending.delete(requestId);
-        reject(new Error(type === 'init' ? 'Phrase model load timed out.' : 'Phrase generation timed out.'));
+        reject(new Error(type === 'init' ? 'Phrase model load timed out. Check the network and retry.' : 'Phrase generation timed out.'));
       }, timeoutMs);
       this.pending.set(requestId, { resolve, reject, timeout });
       this.worker!.postMessage({ type, requestId, request });

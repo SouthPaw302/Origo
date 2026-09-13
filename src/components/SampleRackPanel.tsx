@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, Layers3, Pause, Play, Repeat2, Upload, X } from 'lucide-react';
 import { SpeciesType } from '../types';
-import { loadOrigoCc0StarterBank } from '../audio/builtInSampleBank';
+import {
+  loadOrigoCc0ElectronicBank,
+  loadOrigoCc0StarterBank,
+  ORIGO_CC0_ELECTRONIC_BANK,
+  ORIGO_CC0_STARTER_BANK,
+} from '../audio/builtInSampleBank';
 import { sampleInstrumentEngine } from '../audio/sampleInstrumentEngine';
 
 const SPECIES_LABEL: Record<SpeciesType, string> = {
@@ -25,8 +30,8 @@ export function SampleRackPanel() {
   const [loopBpm, setLoopBpm] = useState(100);
   const [loopBars, setLoopBars] = useState(4);
   const [error, setError] = useState<string | null>(null);
-  const [starterLoading, setStarterLoading] = useState(false);
-  const [starterProgress, setStarterProgress] = useState('');
+  const [bankLoading, setBankLoading] = useState<'acoustic' | 'electronic' | null>(null);
+  const [bankProgress, setBankProgress] = useState('');
 
   useEffect(() => sampleInstrumentEngine.subscribe(() => refresh((value) => value + 1)), []);
   const status = sampleInstrumentEngine.getStatus();
@@ -44,16 +49,19 @@ export function SampleRackPanel() {
     }
   };
 
-  const loadStarter = async () => {
-    setStarterLoading(true);
-    setStarterProgress('0 / 4');
+  const loadBuiltInBank = async (kind: 'acoustic' | 'electronic') => {
+    const total = kind === 'acoustic' ? ORIGO_CC0_STARTER_BANK.length : ORIGO_CC0_ELECTRONIC_BANK.length;
+    setBankLoading(kind);
+    setBankProgress(`0 / ${total}`);
     setError(null);
     try {
-      await loadOrigoCc0StarterBank((loaded, total) => setStarterProgress(`${loaded} / ${total}`));
+      const progress = (loaded: number, bankTotal: number) => setBankProgress(`${loaded} / ${bankTotal}`);
+      if (kind === 'acoustic') await loadOrigoCc0StarterBank(progress);
+      else await loadOrigoCc0ElectronicBank(progress);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load the CC0 starter bank.');
+      setError(err instanceof Error ? err.message : 'Unable to load the CC0 sample bank.');
     } finally {
-      setStarterLoading(false);
+      setBankLoading(null);
     }
   };
 
@@ -75,15 +83,20 @@ export function SampleRackPanel() {
         <div>
           <p className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-[#ffb24a]"><Layers3 className="h-3 w-3" /> Sample Rack</p>
           <p className="mt-1 text-xs font-medium text-white">Recorded instruments + recursive song loop</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#777]">Use actual recorded instrument WAVs. Origo pitch-shifts them from a root note, but event timing still comes from the ecosystem.</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-[#777]">Tonal banks choose the nearest real note before pitch-shifting; production one-shots stay at their recorded pitch. Creature timing remains ecosystem-driven.</p>
         </div>
         <button onClick={() => sampleInstrumentEngine.setEnabled(!status.enabled)} className={`border px-2 py-1 font-mono text-[8px] uppercase tracking-widest ${status.enabled ? 'border-[#00ff41]/50 text-[#00ff41]' : 'border-[#333] text-[#666]'}`}>{status.enabled ? 'On' : 'Off'}</button>
       </div>
 
-      <button disabled={starterLoading} onClick={loadStarter} className="mt-3 flex w-full items-center justify-center gap-2 border border-[#00ff41]/45 bg-[#00ff41]/5 px-3 py-2.5 font-mono text-[8px] font-bold uppercase tracking-wider text-[#70ff91] hover:bg-[#00ff41] hover:text-black disabled:opacity-40">
-        <Download className="h-3.5 w-3.5" /> {starterLoading ? `Loading CC0 instruments ${starterProgress}` : 'Load Origo CC0 Starter Bank · ~4 MB'}
-      </button>
-      <p className="mt-1.5 text-[8px] leading-relaxed text-[#555]">Lazy-loads four public-domain VSCO 2 CE recordings: violin pizzicato, cello pizzicato, sustained cello and flute staccato. You can replace any slot with your own recording.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button disabled={bankLoading !== null} onClick={() => void loadBuiltInBank('acoustic')} className="flex min-h-12 items-center justify-center gap-2 border border-[#00ff41]/45 bg-[#00ff41]/5 px-2 py-2.5 font-mono text-[8px] font-bold uppercase tracking-wider text-[#70ff91] hover:bg-[#00ff41] hover:text-black disabled:opacity-40">
+          <Download className="h-3.5 w-3.5" /> {bankLoading === 'acoustic' ? `Acoustic ${bankProgress}` : `Acoustic · ${ORIGO_CC0_STARTER_BANK.length}`}
+        </button>
+        <button disabled={bankLoading !== null} onClick={() => void loadBuiltInBank('electronic')} className="flex min-h-12 items-center justify-center gap-2 border border-[#ffb24a]/55 bg-[#ffb24a]/5 px-2 py-2.5 font-mono text-[8px] font-bold uppercase tracking-wider text-[#ffb24a] hover:bg-[#ffb24a] hover:text-black disabled:opacity-40">
+          <Download className="h-3.5 w-3.5" /> {bankLoading === 'electronic' ? `Electronic ${bankProgress}` : `Electronic · ${ORIGO_CC0_ELECTRONIC_BANK.length}`}
+        </button>
+      </div>
+      <p className="mt-1.5 text-[8px] leading-relaxed text-[#555]">Acoustic uses CC0 VSCO 2 CE multisamples. Electronic uses CC0 Stargate production one-shots (FM/8-bit percussion, kick, snare/clap and hats) without pitch-warping the drums. Loading a bank replaces the current mapped samples; a personal upload replaces only that species.</p>
 
       <div className="mt-3 space-y-1.5">
         {Object.values(SpeciesType).map((species) => {
@@ -99,15 +112,23 @@ export function SampleRackPanel() {
               />
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[9px] text-[#ddd]">{SPECIES_LABEL[species]}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[9px] text-[#ddd]">{SPECIES_LABEL[species]}</p>
+                    {slot.zoneCount > 1 && <span className="border border-[#ffb24a]/30 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-[#ffb24a]">{slot.zoneCount} zones</span>}
+                  </div>
                   <p className="truncate text-[8px] text-[#555]">{slot.fileName || SAMPLE_HINT[species]}</p>
+                  {slot.zoneCount > 1 && <p className="mt-0.5 text-[7px] text-[#454545]">{slot.zones.some((zone) => !zone.pitchTracking) ? 'One-shot selector mapping · no drum pitch-warp' : 'Nearest recorded root selected automatically'}</p>}
                 </div>
                 <div className="flex items-center gap-1">
-                  <label className="flex items-center gap-1 text-[7px] text-[#555]">ROOT
-                    <input type="number" min="0" max="127" value={slot.rootMidi} onChange={(event) => sampleInstrumentEngine.setRootMidi(species, Number(event.target.value))} className="w-11 border border-[#333] bg-black px-1 py-1 text-right font-mono text-[8px] text-white" />
-                  </label>
-                  <button onClick={() => speciesInputs.current[species]?.click()} className="p-1.5 text-[#888] hover:text-[#ffb24a]" title="Load recorded sample"><Upload className="h-3 w-3" /></button>
-                  {slot.ready && <button onClick={() => sampleInstrumentEngine.clearSpeciesSample(species)} className="p-1.5 text-[#666] hover:text-[#ff6538]" title="Clear sample"><X className="h-3 w-3" /></button>}
+                  {slot.zoneCount <= 1 ? (
+                    <label className="flex items-center gap-1 text-[7px] text-[#555]">ROOT
+                      <input type="number" min="0" max="127" value={slot.rootMidi} onChange={(event) => sampleInstrumentEngine.setRootMidi(species, Number(event.target.value))} className="w-11 border border-[#333] bg-black px-1 py-1 text-right font-mono text-[8px] text-white" />
+                    </label>
+                  ) : (
+                    <span className="px-1 font-mono text-[7px] uppercase tracking-wider text-[#555]">Auto root</span>
+                  )}
+                  <button onClick={() => speciesInputs.current[species]?.click()} className="p-1.5 text-[#888] hover:text-[#ffb24a]" title="Replace with your own recorded sample"><Upload className="h-3 w-3" /></button>
+                  {slot.ready && <button onClick={() => sampleInstrumentEngine.clearSpeciesSample(species)} className="p-1.5 text-[#666] hover:text-[#ff6538]" title="Clear samples"><X className="h-3 w-3" /></button>}
                 </div>
               </div>
             </div>

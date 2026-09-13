@@ -3,6 +3,13 @@ export type MusicModelCapability =
   | 'groove-variation'
   | 'macro-structure';
 
+export type MusicModelLoadPhase =
+  | 'idle'
+  | 'runtime'
+  | 'checkpoint'
+  | 'initializing'
+  | 'ready';
+
 export interface PhraseSeedNote {
   pitch: number;
   startBeat: number;
@@ -39,6 +46,9 @@ export interface MusicModelStatus {
   error: string | null;
   downloadLabel: string;
   optional: true;
+  phase?: MusicModelLoadPhase;
+  progress?: number;
+  detail?: string | null;
 }
 
 export interface ModelGuidanceRef {

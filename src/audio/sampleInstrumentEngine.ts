@@ -1,11 +1,21 @@
 import { SpeciesType } from '../types';
 import { soundEngine } from './soundEngine';
 
+export interface SampleZoneStatus {
+  id: string;
+  fileName: string;
+  rootMidi: number;
+  gain: number;
+  pitchTracking: boolean;
+}
+
 export interface SampleSlotStatus {
   ready: boolean;
   fileName: string | null;
   rootMidi: number;
   gain: number;
+  zoneCount: number;
+  zones: SampleZoneStatus[];
 }
 
 export interface AetherLoopStatus {
@@ -24,8 +34,43 @@ export interface SampleRackStatus {
   aetherLoop: AetherLoopStatus;
 }
 
-interface SampleSlotRuntime extends SampleSlotStatus {
-  buffer: AudioBuffer | null;
+interface SampleZoneRuntime extends SampleZoneStatus {
+  buffer: AudioBuffer;
+}
+
+interface SampleSlotRuntime {
+  ready: boolean;
+  fileName: string | null;
+  rootMidi: number;
+  gain: number;
+  zones: SampleZoneRuntime[];
+}
+
+export interface SampleZoneInput {
+  fileName: string;
+  rootMidi: number;
+  buffer: AudioBuffer;
+  gain?: number;
+  pitchTracking?: boolean;
+  id?: string;
+}
+
+export interface SampleRenderZone {
+  fileName: string;
+  rootMidi: number;
+  gain: number;
+  pitchTracking: boolean;
+  buffer: AudioBuffer;
+}
+
+export interface SampleRenderSlot {
+  gain: number;
+  zones: SampleRenderZone[];
+}
+
+export interface SampleRenderSnapshot {
+  enabled: boolean;
+  species: Record<SpeciesType, SampleRenderSlot>;
 }
 
 const DEFAULT_ROOT: Record<SpeciesType, number> = {
@@ -39,17 +84,28 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
 }
 
+function createEmptySlot(species: SpeciesType, gain: number): SampleSlotRuntime {
+  return {
+    ready: false,
+    fileName: null,
+    rootMidi: DEFAULT_ROOT[species],
+    gain,
+    zones: [],
+  };
+}
+
 export class SampleInstrumentEngine {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private listeners = new Set<() => void>();
   private enabled = true;
   private tempoBpm = 100;
+  private zoneCounter = 0;
   private species: Record<SpeciesType, SampleSlotRuntime> = {
-    [SpeciesType.Resonator]: { ready: false, fileName: null, rootMidi: DEFAULT_ROOT[SpeciesType.Resonator], gain: 0.72, buffer: null },
-    [SpeciesType.Predator]: { ready: false, fileName: null, rootMidi: DEFAULT_ROOT[SpeciesType.Predator], gain: 0.78, buffer: null },
-    [SpeciesType.Architect]: { ready: false, fileName: null, rootMidi: DEFAULT_ROOT[SpeciesType.Architect], gain: 0.62, buffer: null },
-    [SpeciesType.Glider]: { ready: false, fileName: null, rootMidi: DEFAULT_ROOT[SpeciesType.Glider], gain: 0.7, buffer: null },
+    [SpeciesType.Resonator]: createEmptySlot(SpeciesType.Resonator, 0.72),
+    [SpeciesType.Predator]: createEmptySlot(SpeciesType.Predator, 0.78),
+    [SpeciesType.Architect]: createEmptySlot(SpeciesType.Architect, 0.62),
+    [SpeciesType.Glider]: createEmptySlot(SpeciesType.Glider, 0.7),
   };
   private aetherLoop = {
     ready: false,
@@ -107,7 +163,10 @@ export class SampleInstrumentEngine {
   }
 
   public setRootMidi(species: SpeciesType, midi: number) {
-    this.species[species].rootMidi = Math.round(clamp(midi, 0, 127));
+    const next = Math.round(clamp(midi, 0, 127));
+    const slot = this.species[species];
+    slot.rootMidi = next;
+    if (slot.zones.length === 1) slot.zones[0].rootMidi = next;
     this.emit();
   }
 
@@ -116,45 +175,87 @@ export class SampleInstrumentEngine {
     this.emit();
   }
 
+  /** User uploads intentionally replace the mapped bank for that species with one editable-root sample. */
   public async loadSpeciesSample(species: SpeciesType, file: File) {
     const buffer = await this.decodeFile(file);
     const slot = this.species[species];
-    slot.buffer = buffer;
-    slot.ready = true;
-    slot.fileName = file.name;
+    slot.zones = [this.createZone(file.name, slot.rootMidi, buffer)];
+    this.refreshSlotSummary(species);
     this.emit();
   }
 
-  public clearSpeciesSample(species: SpeciesType) {
+  public async loadSpeciesSampleZone(species: SpeciesType, file: File, rootMidi: number, replaceExisting = false) {
+    const buffer = await this.decodeFile(file);
+    this.addDecodedZone(species, file.name, rootMidi, buffer, replaceExisting);
+  }
+
+  /** Allows built-in/licensed banks to add decoded zones without pretending they are user files. */
+  public async loadSpeciesBlobZone(
+    species: SpeciesType,
+    blob: Blob,
+    fileName: string,
+    rootMidi: number,
+    replaceExisting = false,
+    gain = 1,
+    pitchTracking = true
+  ) {
+    const context = this.ensureContext();
+    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+    this.addDecodedZone(species, fileName, rootMidi, buffer, replaceExisting, gain, pitchTracking);
+  }
+
+  public clearSpeciesSample(species: SpeciesType, emit = true) {
     const slot = this.species[species];
-    slot.buffer = null;
+    slot.zones = [];
     slot.ready = false;
     slot.fileName = null;
-    this.emit();
+    if (emit) this.emit();
   }
 
   public hasSpeciesSample(species: SpeciesType) {
-    return this.enabled && this.species[species].ready && Boolean(this.species[species].buffer);
+    return this.enabled && this.species[species].zones.length > 0;
   }
 
   public playSpeciesSample(species: SpeciesType, midiNote: number, intensity: number) {
     if (!this.enabled) return false;
     const slot = this.species[species];
-    if (!slot.buffer) return false;
+    if (!slot.zones.length) return false;
+
+    const targetMidi = Math.round(clamp(midiNote, 0, 127));
+    const zone = slot.zones.reduce((best, candidate) =>
+      Math.abs(candidate.rootMidi - targetMidi) < Math.abs(best.rootMidi - targetMidi) ? candidate : best
+    );
 
     const context = this.ensureContext();
     const source = context.createBufferSource();
     const gain = context.createGain();
-    source.buffer = slot.buffer;
-    const semitones = clamp(Math.round(midiNote) - slot.rootMidi, -24, 24);
+    source.buffer = zone.buffer;
+    const semitones = zone.pitchTracking ? clamp(targetMidi - zone.rootMidi, -18, 18) : 0;
     source.playbackRate.value = Math.pow(2, semitones / 12);
     const native = soundEngine.getConfig();
-    gain.gain.value = (native.isMuted ? 0 : native.masterVolume) * slot.gain * clamp(0.2 + intensity * 0.8, 0, 1);
+    gain.gain.value =
+      (native.isMuted ? 0 : native.masterVolume) *
+      slot.gain *
+      zone.gain *
+      clamp(0.2 + intensity * 0.8, 0, 1);
     source.connect(gain);
     gain.connect(this.ensureMaster());
     if (context.state === 'suspended') void context.resume();
     source.start();
     return true;
+  }
+
+  /** Snapshot the active recorded-sample palette at take start so later bank changes do not alter that take's render. */
+  public getRenderSnapshot(): SampleRenderSnapshot {
+    return {
+      enabled: this.enabled,
+      species: {
+        [SpeciesType.Resonator]: this.renderSlot(SpeciesType.Resonator),
+        [SpeciesType.Predator]: this.renderSlot(SpeciesType.Predator),
+        [SpeciesType.Architect]: this.renderSlot(SpeciesType.Architect),
+        [SpeciesType.Glider]: this.renderSlot(SpeciesType.Glider),
+      },
+    };
   }
 
   public async loadAetherLoop(file: File, sourceBpm: number, bars: number) {
@@ -245,6 +346,47 @@ export class SampleInstrumentEngine {
     this.emit();
   }
 
+  private addDecodedZone(
+    species: SpeciesType,
+    fileName: string,
+    rootMidi: number,
+    buffer: AudioBuffer,
+    replaceExisting = false,
+    gain = 1,
+    pitchTracking = true
+  ) {
+    const slot = this.species[species];
+    if (replaceExisting) slot.zones = [];
+    const root = Math.round(clamp(rootMidi, 0, 127));
+    slot.zones = slot.zones.filter((zone) => zone.rootMidi !== root);
+    slot.zones.push(this.createZone(fileName, root, buffer, gain, pitchTracking));
+    slot.zones.sort((a, b) => a.rootMidi - b.rootMidi);
+    if (slot.zones.length === 1) slot.rootMidi = root;
+    this.refreshSlotSummary(species);
+    this.emit();
+  }
+
+  private createZone(fileName: string, rootMidi: number, buffer: AudioBuffer, gain = 1, pitchTracking = true): SampleZoneRuntime {
+    return {
+      id: `zone_${++this.zoneCounter}`,
+      fileName,
+      rootMidi: Math.round(clamp(rootMidi, 0, 127)),
+      gain: clamp(gain, 0, 1.5),
+      pitchTracking,
+      buffer,
+    };
+  }
+
+  private refreshSlotSummary(species: SpeciesType) {
+    const slot = this.species[species];
+    slot.ready = slot.zones.length > 0;
+    slot.fileName = slot.zones.length === 0
+      ? null
+      : slot.zones.length === 1
+        ? slot.zones[0].fileName
+        : `${slot.zones.length} mapped recordings`;
+  }
+
   private publicSlot(species: SpeciesType): SampleSlotStatus {
     const slot = this.species[species];
     return {
@@ -252,6 +394,22 @@ export class SampleInstrumentEngine {
       fileName: slot.fileName,
       rootMidi: slot.rootMidi,
       gain: slot.gain,
+      zoneCount: slot.zones.length,
+      zones: slot.zones.map(({ id, fileName, rootMidi, gain, pitchTracking }) => ({ id, fileName, rootMidi, gain, pitchTracking })),
+    };
+  }
+
+  private renderSlot(species: SpeciesType): SampleRenderSlot {
+    const slot = this.species[species];
+    return {
+      gain: slot.gain,
+      zones: slot.zones.map(({ fileName, rootMidi, gain, pitchTracking, buffer }) => ({
+        fileName,
+        rootMidi,
+        gain,
+        pitchTracking,
+        buffer,
+      })),
     };
   }
 
