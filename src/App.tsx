@@ -11,289 +11,43 @@ import { SelfPlayMetrics } from './components/SelfPlayMetrics';
 import { AudioControls } from './components/AudioControls';
 import { MusicCapturePanel } from './components/MusicCapturePanel';
 import { ControlPanel } from './components/ControlPanel';
-import { AgentDetailCard } from './components/AgentDetailCard';
 import { soundEngine } from './audio/soundEngine';
 import { origoMusicSystem } from './music/musicSystem';
 import { EnvironmentPreset } from './types';
-import {
-  Activity,
-  Brain,
-  CircleHelp,
-  Gauge,
-  Maximize2,
-  Minimize2,
-  Music,
-  PanelRightClose,
-  PanelRightOpen,
-  Radio,
-  Sliders,
-  Sparkles,
-  TrendingUp,
-  Volume2,
-  VolumeX,
-  Zap,
-} from 'lucide-react';
+import { Activity, Brain, CircleHelp, Gauge, Maximize2, Minimize2, Music, PanelRightClose, PanelRightOpen, Radio, Sliders, Sparkles, TrendingUp, Volume2, VolumeX, Zap } from 'lucide-react';
 
 type ActiveTab = 'explore' | 'evolution' | 'audio' | 'world';
 
 export default function App() {
-  const engineRef = useRef<SimulationEngine | null>(null);
-  if (!engineRef.current) engineRef.current = new SimulationEngine(1000, 700);
-  const engine = engineRef.current;
+  const engineRef = useRef<SimulationEngine | null>(null); if (!engineRef.current) engineRef.current = new SimulationEngine(1000, 700); const engine = engineRef.current;
+  const initialAudio = soundEngine.getConfig(); const [activeTab, setActiveTab] = useState<ActiveTab>('explore'); const [selectedAgentId, setSelectedAgentId] = useState<string | null>(engine.selectedAgentId); const [metrics, setMetrics] = useState(engine.getMetrics()); const [isAudioMuted, setIsAudioMuted] = useState(initialAudio.isMuted); const [masterVolume, setMasterVolume] = useState(initialAudio.masterVolume ?? 0.7); const [isFullscreen, setIsFullscreen] = useState(false); const [inspectorOpen, setInspectorOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 768); const [isRecording, setIsRecording] = useState(origoMusicSystem.getStatus().recording);
+  useEffect(() => { const interval = setInterval(() => { setMetrics(engine.getMetrics()); setSelectedAgentId(engine.selectedAgentId); const audio = soundEngine.getConfig(); setIsAudioMuted(audio.isMuted); setMasterVolume(audio.masterVolume ?? 0.7); setIsRecording(origoMusicSystem.getStatus().recording); origoMusicSystem.tick(engine); }, 100); return () => clearInterval(interval); }, [engine]);
+  const handleUserInteract = () => soundEngine.init(); const handlePresetSelect = (preset: EnvironmentPreset) => { soundEngine.init(); engine.applyPreset(preset); };
+  const toggleAudio = () => { soundEngine.init(); const next = !isAudioMuted; soundEngine.setMuted(next); setIsAudioMuted(next); };
+  const setVolume = (volume: number) => { soundEngine.init(); soundEngine.setMasterVolume(volume); setMasterVolume(volume); };
+  const applyCalmMix = () => { soundEngine.init(); soundEngine.setMasterVolume(0.42); soundEngine.setNeuralSynthVolume(0.24); soundEngine.setDroneVolume(0.16); soundEngine.setReverbMix(0.28); soundEngine.setDelayMix(0.12); setMasterVolume(0.42); if (isAudioMuted) { soundEngine.setMuted(false); setIsAudioMuted(false); } };
+  const toggleRecording = () => { setInspectorOpen(true); setActiveTab('audio'); if (origoMusicSystem.getStatus().recording) origoMusicSystem.stop(); else origoMusicSystem.start(engine); setIsRecording(origoMusicSystem.getStatus().recording); };
+  const toggleFullscreen = () => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(() => {}); setIsFullscreen(true); } else { document.exitFullscreen().catch(() => {}); setIsFullscreen(false); } };
+  const selectedAgent = engine.getSelectedAgent(); const preset = engine.activePreset.soundPreset; const openTab = (tab: ActiveTab) => { setActiveTab(tab); setInspectorOpen(true); };
 
-  const initialAudio = soundEngine.getConfig();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('explore');
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(engine.selectedAgentId);
-  const [metrics, setMetrics] = useState(engine.getMetrics());
-  const [isAudioMuted, setIsAudioMuted] = useState(initialAudio.isMuted);
-  const [masterVolume, setMasterVolume] = useState(initialAudio.masterVolume ?? 0.7);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [showGuide, setShowGuide] = useState(true);
-  const [isRecording, setIsRecording] = useState(origoMusicSystem.getStatus().recording);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(engine.getMetrics());
-      setSelectedAgentId(engine.selectedAgentId);
-      const audio = soundEngine.getConfig();
-      setIsAudioMuted(audio.isMuted);
-      setMasterVolume(audio.masterVolume ?? 0.7);
-      setIsRecording(origoMusicSystem.getStatus().recording);
-      origoMusicSystem.tick(engine);
-    }, 100);
-    return () => clearInterval(interval);
-  }, [engine]);
-
-  const handleUserInteract = () => soundEngine.init();
-
-  const handlePresetSelect = (preset: EnvironmentPreset) => {
-    soundEngine.init();
-    engine.applyPreset(preset);
-  };
-
-  const toggleAudio = () => {
-    soundEngine.init();
-    const next = !isAudioMuted;
-    soundEngine.setMuted(next);
-    setIsAudioMuted(next);
-  };
-
-  const setVolume = (volume: number) => {
-    soundEngine.init();
-    soundEngine.setMasterVolume(volume);
-    setMasterVolume(volume);
-  };
-
-  const applyCalmMix = () => {
-    soundEngine.init();
-    soundEngine.setMasterVolume(0.42);
-    soundEngine.setNeuralSynthVolume(0.24);
-    soundEngine.setDroneVolume(0.16);
-    soundEngine.setReverbMix(0.28);
-    soundEngine.setDelayMix(0.12);
-    setMasterVolume(0.42);
-    if (isAudioMuted) {
-      soundEngine.setMuted(false);
-      setIsAudioMuted(false);
-    }
-  };
-
-  const toggleRecording = () => {
-    setInspectorOpen(true);
-    setActiveTab('audio');
-    if (origoMusicSystem.getStatus().recording) origoMusicSystem.stop();
-    else origoMusicSystem.start(engine);
-    setIsRecording(origoMusicSystem.getStatus().recording);
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
-  const selectedAgent = engine.getSelectedAgent();
-  const preset = engine.activePreset.soundPreset;
-
-  const openTab = (tab: ActiveTab) => {
-    setActiveTab(tab);
-    setInspectorOpen(true);
-  };
-
-  return (
-    <div
-      id="app-root"
-      onClick={handleUserInteract}
-      className="flex h-screen w-screen flex-col overflow-hidden border-[6px] border-[#111] bg-[#050505] text-[#f0f0f0] font-sans md:border-[10px]"
-    >
-      <header className="z-30 flex min-h-[68px] flex-shrink-0 items-center justify-between gap-3 border-b border-[#222] bg-[#0a0a0a] px-3 py-2 md:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="relative grid h-9 w-9 flex-shrink-0 place-items-center border border-[#333] bg-[#050505]">
-            <div className="absolute inset-1 -rotate-6 border border-[#00ff41]/70" />
-            <Sparkles className="relative z-10 h-4 w-4 text-[#00ff41]" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate font-display text-lg font-black uppercase italic tracking-tighter text-white md:text-xl">Neural Harmonics</h1>
-              <span className="hidden border border-[#2a2a2a] bg-black px-2 py-0.5 font-mono text-[8px] uppercase tracking-widest text-[#777] sm:inline">Origo</span>
-            </div>
-            <p className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-[#666]">Living music ecosystem</p>
-          </div>
-        </div>
-
-        <div className="hidden items-center gap-5 lg:flex">
-          <HeaderStat label="World" value="Live" accent="text-[#00ff41]" />
-          <HeaderStat label="Tempo" value={`${preset.tempoBpm} BPM`} accent="text-[#ff5a32]" />
-          <HeaderStat label="Scale" value={preset.scaleName} accent="text-white" />
-          <HeaderStat label="FPS" value={`${metrics.fps}`} accent="text-[#aaa]" />
-        </div>
-
-        <div className="flex items-center gap-1.5 md:gap-2">
-          <button onClick={applyCalmMix} className="hidden items-center gap-1.5 border border-[#333] bg-[#101010] px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider text-[#bbb] transition hover:border-[#00ff41] hover:text-[#00ff41] sm:flex" title="Lower the busy layers to a comfortable starting mix">
-            <Zap className="h-3 w-3" /> Calm Mix
-          </button>
-
-          <div className="hidden items-center gap-2 border border-[#252525] bg-[#0d0d0d] px-2 py-1.5 md:flex">
-            <Volume2 className="h-3 w-3 text-[#777]" />
-            <input aria-label="Master volume" type="range" min="0" max="1" step="0.01" value={masterVolume} onChange={(e) => setVolume(Number(e.target.value))} className="w-20 lg:w-24" />
-          </div>
-
-          <button onClick={toggleAudio} className={`flex items-center gap-1.5 border px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider transition ${isAudioMuted ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#00ff41] text-[#00ff41]'}`} title={isAudioMuted ? 'Turn sound on' : 'Mute sound'}>
-            {isAudioMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{isAudioMuted ? 'Muted' : 'Sound'}</span>
-          </button>
-
-          <button onClick={toggleRecording} className={`flex items-center gap-1.5 border px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider transition ${isRecording ? 'border-[#ff3e00] bg-[#ff3e00]/10 text-[#ff3e00]' : 'border-[#333] text-[#bbb] hover:border-[#ff3e00] hover:text-[#ff3e00]'}`} title={isRecording ? 'Stop world recording' : 'Record this world'}>
-            <Radio className={`h-3.5 w-3.5 ${isRecording ? 'animate-pulse' : ''}`} />
-            <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Record'}</span>
-          </button>
-
-          <button onClick={() => setShowGuide((value) => !value)} className="hidden border border-[#2b2b2b] p-2 text-[#777] transition hover:text-white sm:block" title="Show quick guide"><CircleHelp className="h-3.5 w-3.5" /></button>
-          <button onClick={() => setInspectorOpen((value) => !value)} className="border border-[#2b2b2b] p-2 text-[#888] transition hover:text-white" title={inspectorOpen ? 'Hide controls' : 'Show controls'}>{inspectorOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}</button>
-          <button onClick={toggleFullscreen} className="hidden border border-[#2b2b2b] p-2 text-[#888] transition hover:text-white md:block" title="Toggle fullscreen">{isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
-        </div>
-      </header>
-
-      <main className="relative flex min-h-0 flex-1 overflow-hidden">
-        <section className="relative min-w-0 flex-1 bg-[#050505]">
-          <SimulationCanvas engine={engine} selectedAgentId={selectedAgentId} onSelectAgent={(id) => { setSelectedAgentId(id); setActiveTab('explore'); }} />
-          <AgentDetailCard agent={selectedAgent} onDeselect={() => { setSelectedAgentId(null); engine.selectedAgentId = null; }} />
-
-          {showGuide && (
-            <div className="pointer-events-auto absolute bottom-4 left-4 right-4 z-10 max-w-md border border-[#292929] bg-[#090909]/95 p-3 shadow-2xl backdrop-blur md:right-auto">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#00ff41]">Start here</p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#aaa]">Watch the world evolve. Click a creature to inspect it. Use <b className="text-white">Sound</b> to shape the mix, then <b className="text-white">Record</b> when you hear something worth keeping.</p>
-                </div>
-                <button onClick={() => setShowGuide(false)} className="px-1 text-sm text-[#555] hover:text-white" aria-label="Dismiss guide">×</button>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {!inspectorOpen && (
-          <button onClick={() => setInspectorOpen(true)} className="absolute right-3 top-3 z-20 flex items-center gap-1.5 border border-[#333] bg-[#0a0a0a]/95 px-3 py-2 font-mono text-[9px] uppercase tracking-wider text-[#aaa] hover:border-[#00ff41] hover:text-[#00ff41]">
-            <PanelRightOpen className="h-3.5 w-3.5" /> Controls
-          </button>
-        )}
-
-        {inspectorOpen && <div onClick={() => setInspectorOpen(false)} className="absolute inset-0 z-10 bg-black/55 md:hidden" />}
-
-        <aside className={`${inspectorOpen ? 'translate-x-0' : 'translate-x-full md:hidden'} absolute bottom-0 right-0 top-0 z-20 flex w-[min(92vw,420px)] flex-shrink-0 flex-col border-l border-[#222] bg-[#0a0a0a] shadow-2xl transition-transform md:relative md:w-96 md:shadow-none xl:w-[420px]`}>
-          <div className="flex items-start justify-between border-b border-[#222] px-4 py-3">
-            <div>
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#666]">Control Deck</p>
-              <p className="mt-0.5 text-xs text-[#bbb]">Explore the world without breaking the spell.</p>
-            </div>
-            <button onClick={() => setInspectorOpen(false)} className="p-1 text-[#555] hover:text-white md:hidden" aria-label="Close controls">×</button>
-          </div>
-
-          <nav className="grid grid-cols-4 border-b border-[#222] bg-[#101010]">
-            <FriendlyTab active={activeTab === 'explore'} onClick={() => openTab('explore')} icon={<Brain className="h-3.5 w-3.5" />} label="Explore" />
-            <FriendlyTab active={activeTab === 'evolution'} onClick={() => openTab('evolution')} icon={<TrendingUp className="h-3.5 w-3.5" />} label="Evolution" accent="orange" />
-            <FriendlyTab active={activeTab === 'audio'} onClick={() => openTab('audio')} icon={<Music className="h-3.5 w-3.5" />} label="Sound" />
-            <FriendlyTab active={activeTab === 'world'} onClick={() => openTab('world')} icon={<Sliders className="h-3.5 w-3.5" />} label="World" accent="orange" />
-          </nav>
-
-          <div className="min-h-0 flex-1 overflow-y-auto bg-[#0a0a0a] p-3">
-            {activeTab === 'explore' && (selectedAgent ? <NeuralInspector agent={selectedAgent} /> : <ExploreHome onOpen={openTab} stepCount={metrics.stepCount} population={metrics.totalPopulation} />)}
-            {activeTab === 'evolution' && (
-              <div className="h-full">
-                <SectionIntro eyebrow="Evolution" title="See what the ecosystem is learning" description="Generations, rewards and species balance live here. The technical metrics are still available, but the world stays front and center." />
-                <SelfPlayMetrics metrics={metrics} ganMetrics={engine.getGANMetrics()} onSelectLatent={(latent) => engine.applyLatentSample(latent)} onResampleLatent={() => engine.resampleLatentSpace()} />
-              </div>
-            )}
-            {activeTab === 'audio' && (
-              <div className="space-y-3">
-                <SectionIntro eyebrow="Sound" title="Shape it, then save it" description="Start with Calm Mix if the ecosystem gets too busy. Record a world when you hear a performance worth keeping." />
-                <MusicCapturePanel engine={engine} />
-                <div className="border-t border-[#222] pt-3">
-                  <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[#666]">Detailed Mix Controls</p>
-                  <AudioControls />
-                </div>
-              </div>
-            )}
-            {activeTab === 'world' && (
-              <div className="h-full">
-                <SectionIntro eyebrow="World" title="Change the environment" description="Choose the scenario and simulation behavior. These controls shape the ecosystem that produces the music." />
-                <ControlPanel engine={engine} onPresetChange={handlePresetSelect} />
-              </div>
-            )}
-          </div>
-        </aside>
-      </main>
-
-      <footer className="flex h-8 flex-shrink-0 items-center justify-between border-t border-[#222] bg-[#0b0b0b] px-3 font-mono text-[9px] uppercase tracking-wider text-[#555] md:px-5">
-        <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00ff41]" /> World running</span>
-        <span className="hidden sm:inline">Click creature · Sound to tune · Record to save</span>
-        <span>{preset.scaleName} · {preset.tempoBpm} BPM</span>
-      </footer>
-    </div>
-  );
-}
-
-function HeaderStat({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return <div className="text-right"><p className="font-mono text-[8px] uppercase tracking-widest text-[#555]">{label}</p><p className={`font-mono text-sm ${accent}`}>{value}</p></div>;
-}
-
-function FriendlyTab({ active, onClick, icon, label, accent = 'green' }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; accent?: 'green' | 'orange' }) {
-  const activeStyle = accent === 'orange' ? 'border-[#ff3e00] text-[#ff6538]' : 'border-[#00ff41] text-[#00ff41]';
-  return <button onClick={onClick} className={`flex min-w-0 flex-col items-center justify-center gap-1 border-b-2 px-1 py-2.5 font-mono text-[9px] uppercase tracking-wider transition ${active ? `bg-[#080808] ${activeStyle}` : 'border-transparent text-[#777] hover:bg-[#151515] hover:text-white'}`}>{icon}<span className="truncate">{label}</span></button>;
-}
-
-function SectionIntro({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
-  return <div className="mb-3 border border-[#222] bg-[#080808] p-3"><p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#666]">{eyebrow}</p><h2 className="mt-1 text-sm font-semibold text-white">{title}</h2><p className="mt-1 text-[11px] leading-relaxed text-[#888]">{description}</p></div>;
-}
-
-function ExploreHome({ onOpen, stepCount, population }: { onOpen: (tab: ActiveTab) => void; stepCount: number; population: number }) {
-  return <div className="space-y-3">
-    <SectionIntro eyebrow="Explore" title="The world is alive" description="Select a creature in the simulation for a closer look, or use these shortcuts to shape what happens next." />
-    <div className="grid grid-cols-2 gap-2">
-      <Shortcut icon={<Activity className="h-4 w-4" />} title="Inspect life" text="Click a creature to see energy, behavior and learning state." hint="Select in world" />
-      <Shortcut icon={<Music className="h-4 w-4" />} title="Shape sound" text="Balance the musical layers and capture a performance." hint="Open Sound" onClick={() => onOpen('audio')} />
-      <Shortcut icon={<TrendingUp className="h-4 w-4" />} title="Watch evolution" text="Follow rewards, generations and species balance." hint="Open Evolution" onClick={() => onOpen('evolution')} />
-      <Shortcut icon={<Gauge className="h-4 w-4" />} title="Change world" text="Switch scenarios and simulation behavior." hint="Open World" onClick={() => onOpen('world')} />
-    </div>
-    <div className="grid grid-cols-2 gap-2 border-t border-[#222] pt-3">
-      <MiniStat label="Steps" value={stepCount.toLocaleString()} />
-      <MiniStat label="Population" value={String(population ?? 0)} />
-    </div>
+  return <div id="app-root" onClick={handleUserInteract} className="flex h-screen w-screen flex-col overflow-hidden border-[6px] border-[#111] bg-[#050505] text-[#f0f0f0] font-sans md:border-[10px]">
+    <header className="z-30 flex min-h-[68px] flex-shrink-0 items-center justify-between gap-3 border-b border-[#222] bg-[#0a0a0a] px-3 py-2 md:px-5"><div className="flex min-w-0 items-center gap-3"><div className="relative grid h-9 w-9 flex-shrink-0 place-items-center border border-[#333] bg-[#050505]"><div className="absolute inset-1 -rotate-6 border border-[#00ff41]/70" /><Sparkles className="relative z-10 h-4 w-4 text-[#00ff41]" /></div><div className="min-w-0"><div className="flex items-center gap-2"><h1 className="truncate font-display text-lg font-black uppercase italic tracking-tighter text-white md:text-xl">Neural Harmonics</h1><span className="hidden border border-[#2a2a2a] bg-black px-2 py-0.5 font-mono text-[8px] uppercase tracking-widest text-[#777] sm:inline">Origo</span></div><p className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-[#666]">Living music ecosystem</p></div></div>
+      <div className="hidden items-center gap-5 lg:flex"><HeaderStat label="World" value="Live" accent="text-[#00ff41]" /><HeaderStat label="Tempo" value={`${preset.tempoBpm} BPM`} accent="text-[#ff5a32]" /><HeaderStat label="Scale" value={preset.scaleName} accent="text-white" /><HeaderStat label="FPS" value={`${metrics.fps}`} accent="text-[#aaa]" /></div>
+      <div className="flex items-center gap-1.5 md:gap-2"><button onClick={applyCalmMix} className="hidden items-center gap-1.5 border border-[#333] bg-[#101010] px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider text-[#bbb] transition hover:border-[#00ff41] hover:text-[#00ff41] sm:flex" title="Lower the busy layers to a comfortable starting mix"><Zap className="h-3 w-3" /> Calm Mix</button><div className="hidden items-center gap-2 border border-[#252525] bg-[#0d0d0d] px-2 py-1.5 md:flex"><Volume2 className="h-3 w-3 text-[#777]" /><input aria-label="Master volume" type="range" min="0" max="1" step="0.01" value={masterVolume} onChange={(e) => setVolume(Number(e.target.value))} className="w-20 lg:w-24" /></div><button onClick={toggleAudio} className={`flex items-center gap-1.5 border px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider transition ${isAudioMuted ? 'border-[#ff3e00] text-[#ff3e00]' : 'border-[#00ff41] text-[#00ff41]'}`} title={isAudioMuted ? 'Turn sound on' : 'Mute sound'}>{isAudioMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}<span className="hidden sm:inline">{isAudioMuted ? 'Muted' : 'Sound'}</span></button><button onClick={toggleRecording} className={`flex items-center gap-1.5 border px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider transition ${isRecording ? 'border-[#ff3e00] bg-[#ff3e00]/10 text-[#ff3e00]' : 'border-[#333] text-[#bbb] hover:border-[#ff3e00] hover:text-[#ff3e00]'}`} title={isRecording ? 'Stop world recording' : 'Record this world'}><Radio className={`h-3.5 w-3.5 ${isRecording ? 'animate-pulse' : ''}`} /><span className="hidden sm:inline">{isRecording ? 'Stop' : 'Record'}</span></button><button onClick={() => openTab('explore')} className="hidden border border-[#2b2b2b] p-2 text-[#777] transition hover:text-white sm:block" title="Open help in the control deck"><CircleHelp className="h-3.5 w-3.5" /></button><button onClick={() => setInspectorOpen((value) => !value)} className="border border-[#2b2b2b] p-2 text-[#888] transition hover:text-white" title={inspectorOpen ? 'Hide controls' : 'Show controls'}>{inspectorOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}</button><button onClick={toggleFullscreen} className="hidden border border-[#2b2b2b] p-2 text-[#888] transition hover:text-white md:block" title="Toggle fullscreen">{isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button></div>
+    </header>
+    <main className="relative flex min-h-0 flex-1 overflow-hidden"><section className="relative min-w-0 flex-1 bg-[#050505]"><SimulationCanvas engine={engine} selectedAgentId={selectedAgentId} onSelectAgent={(id) => { setSelectedAgentId(id); setActiveTab('explore'); setInspectorOpen(true); }} /></section>
+      {!inspectorOpen && <button onClick={() => setInspectorOpen(true)} className="absolute right-3 top-3 z-20 flex items-center gap-1.5 border border-[#333] bg-[#0a0a0a]/95 px-3 py-2 font-mono text-[9px] uppercase tracking-wider text-[#aaa] hover:border-[#00ff41] hover:text-[#00ff41]"><PanelRightOpen className="h-3.5 w-3.5" /> Controls</button>}
+      {inspectorOpen && <div onClick={() => setInspectorOpen(false)} className="absolute inset-0 z-10 bg-black/55 md:hidden" />}
+      <aside className={`${inspectorOpen ? 'translate-x-0' : 'translate-x-full md:hidden'} absolute bottom-0 right-0 top-0 z-20 flex w-[min(92vw,420px)] flex-shrink-0 flex-col border-l border-[#222] bg-[#0a0a0a] shadow-2xl transition-transform md:relative md:w-96 md:shadow-none xl:w-[420px]`}><div className="flex items-start justify-between border-b border-[#222] px-4 py-3"><div><p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#666]">Control Deck</p><p className="mt-0.5 text-xs text-[#bbb]">Controls stay docked here so the living world remains unobstructed.</p></div><button onClick={() => setInspectorOpen(false)} className="p-1 text-[#555] hover:text-white md:hidden" aria-label="Close controls">×</button></div><nav className="grid grid-cols-4 border-b border-[#222] bg-[#101010]"><FriendlyTab active={activeTab === 'explore'} onClick={() => openTab('explore')} icon={<Brain className="h-3.5 w-3.5" />} label="Explore" /><FriendlyTab active={activeTab === 'evolution'} onClick={() => openTab('evolution')} icon={<TrendingUp className="h-3.5 w-3.5" />} label="Evolution" accent="orange" /><FriendlyTab active={activeTab === 'audio'} onClick={() => openTab('audio')} icon={<Music className="h-3.5 w-3.5" />} label="Sound" /><FriendlyTab active={activeTab === 'world'} onClick={() => openTab('world')} icon={<Sliders className="h-3.5 w-3.5" />} label="World" accent="orange" /></nav>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#0a0a0a] p-3">{activeTab === 'explore' && (selectedAgent ? <NeuralInspector agent={selectedAgent} /> : <ExploreHome onOpen={openTab} stepCount={metrics.stepCount} population={metrics.totalPopulation} />)}{activeTab === 'evolution' && <div className="h-full"><SectionIntro eyebrow="Evolution" title="See what the ecosystem is learning" description="Generations, rewards and species balance live here. The technical metrics are still available, but the world stays front and center." /><SelfPlayMetrics metrics={metrics} ganMetrics={engine.getGANMetrics()} onSelectLatent={(latent) => engine.applyLatentSample(latent)} onResampleLatent={() => engine.resampleLatentSpace()} /></div>}{activeTab === 'audio' && <div className="space-y-3"><SectionIntro eyebrow="Sound" title="Shape it, then capture it" description="Start with Calm Mix if the ecosystem gets too busy. Record a world when you hear a performance worth keeping." /><MusicCapturePanel engine={engine} /><div className="border-t border-[#222] pt-3"><p className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[#666]">Detailed Mix Controls</p><AudioControls /></div></div>}{activeTab === 'world' && <div className="h-full"><SectionIntro eyebrow="World" title="Change the environment" description="Choose the scenario and simulation behavior. These controls shape the ecosystem that produces the music." /><ControlPanel engine={engine} onPresetChange={handlePresetSelect} /></div>}</div>
+      </aside>
+    </main>
+    <footer className="flex h-8 flex-shrink-0 items-center justify-between border-t border-[#222] bg-[#0b0b0b] px-3 font-mono text-[9px] uppercase tracking-wider text-[#555] md:px-5"><span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00ff41]" /> World running</span><span className="hidden sm:inline">Click creature · Sound to tune · Record to capture</span><span>{preset.scaleName} · {preset.tempoBpm} BPM</span></footer>
   </div>;
 }
-
-function Shortcut({ icon, title, text, hint, onClick }: { icon: React.ReactNode; title: string; text: string; hint: string; onClick?: () => void }) {
-  const Tag: any = onClick ? 'button' : 'div';
-  return <Tag onClick={onClick} className="min-h-28 border border-[#242424] bg-[#0d0d0d] p-3 text-left transition hover:border-[#3a3a3a]">
-    <div className="mb-2 text-[#00ff41]">{icon}</div><p className="text-xs font-semibold text-white">{title}</p><p className="mt-1 text-[10px] leading-relaxed text-[#777]">{text}</p><p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-[#00ff41]">{hint} →</p>
-  </Tag>;
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return <div className="border border-[#202020] bg-[#080808] p-2 text-center"><p className="font-mono text-sm text-white">{value}</p><p className="font-mono text-[8px] uppercase tracking-widest text-[#555]">{label}</p></div>;
-}
+function HeaderStat({ label, value, accent }: { label: string; value: string; accent: string }) { return <div className="text-right"><p className="font-mono text-[8px] uppercase tracking-widest text-[#555]">{label}</p><p className={`font-mono text-sm ${accent}`}>{value}</p></div>; }
+function FriendlyTab({ active, onClick, icon, label, accent = 'green' }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; accent?: 'green' | 'orange' }) { const activeStyle = accent === 'orange' ? 'border-[#ff3e00] text-[#ff6538]' : 'border-[#00ff41] text-[#00ff41]'; return <button onClick={onClick} className={`flex min-w-0 flex-col items-center justify-center gap-1 border-b-2 px-1 py-2.5 font-mono text-[9px] uppercase tracking-wider transition ${active ? `bg-[#080808] ${activeStyle}` : 'border-transparent text-[#777] hover:bg-[#151515] hover:text-white'}`}>{icon}<span className="truncate">{label}</span></button>; }
+function SectionIntro({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) { return <div className="mb-3 border border-[#222] bg-[#080808] p-3"><p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#666]">{eyebrow}</p><h2 className="mt-1 text-sm font-semibold text-white">{title}</h2><p className="mt-1 text-[11px] leading-relaxed text-[#888]">{description}</p></div>; }
+function ExploreHome({ onOpen, stepCount, population }: { onOpen: (tab: ActiveTab) => void; stepCount: number; population: number }) { return <div className="space-y-3"><SectionIntro eyebrow="Explore" title="The world is alive" description="Select a creature in the simulation for a closer look, or use these docked shortcuts to shape what happens next." /><div className="grid grid-cols-2 gap-2"><Shortcut icon={<Activity className="h-4 w-4" />} title="Inspect life" text="Click a creature to see energy, behavior and learning state here in the deck." hint="Select in world" /><Shortcut icon={<Music className="h-4 w-4" />} title="Shape sound" text="Balance the musical layers and capture a performance." hint="Open Sound" onClick={() => onOpen('audio')} /><Shortcut icon={<TrendingUp className="h-4 w-4" />} title="Watch evolution" text="Follow rewards, generations and species balance." hint="Open Evolution" onClick={() => onOpen('evolution')} /><Shortcut icon={<Gauge className="h-4 w-4" />} title="Change world" text="Switch scenarios and simulation behavior." hint="Open World" onClick={() => onOpen('world')} /></div><div className="grid grid-cols-2 gap-2 border-t border-[#222] pt-3"><MiniStat label="Steps" value={stepCount.toLocaleString()} /><MiniStat label="Population" value={String(population ?? 0)} /></div></div>; }
+function Shortcut({ icon, title, text, hint, onClick }: { icon: React.ReactNode; title: string; text: string; hint: string; onClick?: () => void }) { const Tag: any = onClick ? 'button' : 'div'; return <Tag onClick={onClick} className="min-h-28 border border-[#242424] bg-[#0d0d0d] p-3 text-left transition hover:border-[#3a3a3a]"><div className="mb-2 text-[#00ff41]">{icon}</div><p className="text-xs font-semibold text-white">{title}</p><p className="mt-1 text-[10px] leading-relaxed text-[#777]">{text}</p><p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-[#00ff41]">{hint} →</p></Tag>; }
+function MiniStat({ label, value }: { label: string; value: string }) { return <div className="border border-[#202020] bg-[#080808] p-2 text-center"><p className="font-mono text-sm text-white">{value}</p><p className="font-mono text-[8px] uppercase tracking-widest text-[#555]">{label}</p></div>; }
